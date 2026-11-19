@@ -20,6 +20,7 @@ Status legend: ✅ done · ⏳ planned (this doc) · ⚠️ requires a product/o
   - `npm test`: **76 pass / 11 fail**, baseline log in `/tmp/udc-test-baseline.log` (ephemeral). All 11 failures are `Error: DATABASE_URL environment variable is not set` thrown at import time by [server/db.ts](../server/db.ts) — expected with no Postgres yet, not a code regression. Re-run once Phase 13 wires a CI Postgres service.
   - Separately, got the app running locally end-to-end: a dedicated `udc-postgres` Docker container, Node 22 LTS (several deps require ≥20.16/22 — Node 20.12 crashed on boot with `DOMMatrix is not defined` in `pdfjs-dist`), and a small platform-compatibility fix in [server/index.ts](../server/index.ts) (`httpServer.listen({ reusePort: true })` reports `ENOTSUP` on some macOS/Node combinations — now falls back to a plain `listen()`, a no-op on platforms like production Linux where `reusePort` works). Verified live: register/login/auth-gating/DB writes all work against a real Postgres instance.
 - **Phase 2 — Delete unused scaffolding:** done, see §Phase 2 below for exactly what was (and, importantly, was **not**) deleted, and the pre-existing test failures it surfaced (not caused by it).
+- **Phase 3 — Remove Replit Vite plugins:** done, see §Phase 3 below.
 
 ---
 
@@ -208,8 +209,10 @@ rm server/replit_integrations/audio/routes.ts server/replit_integrations/audio/i
   - `heartPlanIntakeReminders.test.ts` — "database reminder selection and claims exclude finished and demo plans" expects one specific reminder ID back, gets `[]`.
   - `heartPlanHousingVehicle.test.ts` — two "golden source text" assertions (`readFileSync` + regex/`indexOf` against `routes.ts`'s raw text) that no longer match current `routes.ts` content — stale tests, not stale code; harmless to the app itself, but drifted and silently never re-validated because the whole file used to fail at import.
 
-### Phase 3 — Remove Replit Vite plugins ✅ low risk
-Same as NER Phase 2: strip `runtimeErrorOverlay()` + the conditional `cartographer`/`dev-banner` imports from [vite.config.ts](../vite.config.ts); `npm uninstall @replit/vite-plugin-runtime-error-modal @replit/vite-plugin-cartographer @replit/vite-plugin-dev-banner`.
+### Phase 3 — Remove Replit Vite plugins ✅ **done**
+Stripped `runtimeErrorOverlay()` + the conditional `cartographer`/`dev-banner` imports from [vite.config.ts](../vite.config.ts); `npm uninstall @replit/vite-plugin-runtime-error-modal @replit/vite-plugin-cartographer @replit/vite-plugin-dev-banner`.
+
+**Validated:** `npm run check` unchanged (19 errors, same as Phase 2 — this phase doesn't touch server code); `npm run build` passes, `dist/public/index.html` has zero `replit` references (previously the dev-banner's `<script src="/@replit/vite-plugin-dev-banner/banner-script.js">` was live-injected in dev mode — confirmed gone from the served HTML after this change); `package.json` has zero `@replit/*` entries left.
 
 ### Phase 4 — Decouple Stripe from Replit Connectors ✅ low risk
 1. Rewrite [server/stripeClient.ts](../server/stripeClient.ts): delete `getConnectorSecretKey()`, `getStripeClient()`/`getStripeIdentityClient()` read `STRIPE_SECRET_KEY` directly.
