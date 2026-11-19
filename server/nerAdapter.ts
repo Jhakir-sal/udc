@@ -1,0 +1,20 @@
+export type NerRegistrationInput = { enrollmentId: string; userId: string };
+
+/** External contract is intentionally isolated until NER provides its schema. */
+export async function registerWithNer(input: NerRegistrationInput): Promise<{ reference: string }> {
+  const baseUrl = process.env.NER_API_URL;
+  const path = process.env.NER_REGISTRATION_PATH;
+  if (!baseUrl || !path) throw new Error("NER integration is not configured; retry after NER_API_URL and NER_REGISTRATION_PATH are set");
+  const response = await fetch(new URL(path, baseUrl), {
+    method: "POST", headers: {
+      "content-type": "application/json",
+      "idempotency-key": `ner-registration:${input.enrollmentId}`,
+    },
+    body: JSON.stringify({ enrollmentId: input.enrollmentId, userId: input.userId }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`NER registration failed (${response.status})`);
+  const data = await response.json() as { reference?: unknown };
+  if (typeof data.reference !== "string" || !data.reference.trim()) throw new Error("NER registration response did not include a reference");
+  return { reference: data.reference.trim() };
+}

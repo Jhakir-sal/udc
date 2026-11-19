@@ -1,0 +1,159 @@
+.sal-concierge,.sal-story-page{--sal-ink:#2c4035;--sal-green:#394f40;--sal-muted:#65746a;--sal-cream:#f3efe4;--sal-paper:#faf8f1;--sal-sage:#e5e9df;--sal-copper:#9b704d;color:var(--sal-ink);background:var(--sal-paper);font-family:var(--font-sans)}
+.sal-concierge *,.sal-story-page *{box-sizing:border-box}
+.sal-concierge a,.sal-story-page a{color:inherit}
+.sal-concierge h1,.sal-concierge h2,.sal-story-page h1,.sal-story-page h2{font-family:var(--font-serif);font-weight:500;letter-spacing:-.035em}
+.sal-concierge em,.sal-story-page em{font-style:italic;color:var(--sal-copper)}
+.sal-hero{min-height:525px;position:relative;display:grid;grid-template-columns:1.02fr .98fr;background:var(--sal-cream);overflow:hidden}
+.sal-hero-copy{padding:68px max(36px,calc((100vw - 1180px)/2));padding-right:38px;align-self:center;position:relative;z-index:1}
+.sal-eyebrow{font:600 .68rem/1.4 var(--font-sans);letter-spacing:.14em;color:#7b684e;margin:0 0 18px}
+.sal-hero h1{font-size:clamp(2.8rem,5.2vw,5.15rem);line-height:.99;margin:0 0 24px;max-width:690px}
+.sal-hero-lede{font-size:1.05rem;line-height:1.75;color:#59665c;max-width:560px;margin:0}
+.sal-hero-actions{display:flex;align-items:center;gap:26px;margin-top:28px;flex-wrap:wrap}
+.sal-button{background:#344b3b;color:#fbf8ef!important;border-radius:3px;min-height:48px;padding:0 22px;gap:12px;font-weight:600;box-shadow:none}
+.sal-button:hover{background:#263c2e}
+.sal-phone{display:inline-flex;align-items:center;gap:9px;text-decoration:none;font-size:1.08rem;font-weight:600;white-space:nowrap}
+.sal-phone svg{width:18px}
+.sal-hero-note{font-size:.79rem;color:#69756b;margin:16px 0 0}
+.sal-hero-image{min-height:525px;background:linear-gradient(90deg,rgba(243,239,228,.18),transparent 30%),url("../../../attached_assets/generated_images/end-of-life-concierge-hands.jpg") center 48%/cover no-repeat}
+.sal-scroll-cue{position:absolute;bottom:16px;left:50%;width:34px;height:34px;border:1px solid #a8aa99;border-radius:50%;display:grid;place-items:center;background:rgba(250,248,241,.7)}
+.sal-scroll-cue svg{width:16px}
+.sal-trust{min-height:74px;padding:15px 24px;display:flex;justify-content:center;align-items:center;gap:38px;background:#3c5143;color:#f8f4e9;font-size:.86rem;flex-wrap:wrap}
+.sal-trust div{display:flex;align-items:center;gap:10px}
+.sal-trust svg{width:17px;height:17px;color:#d3c4a1}
+.sal-trust-dot{height:4px;width:4px;border-radius:50%;background:#c2ad83}
+.sal-section{padding:100px max(28px,calc((100vw - 1160px)/2))}
+.sal-why{display:grid;grid-template-columns:1fr .85fr;gap:90px;align-items:center;padding-top:112px;padding-bottom:112px}
+.sal-copy{max-width:550px}.sal-copy h2,.sal-section-heading h2,.sal-faq-intro h2{font-size:clamp(2.4rem,4vw,3.55rem);line-height:1.04;margin:0 0 24px}
+.sal-copy p:not(.sal-eyebrow){font-size:1rem;line-height:1.85;color:#59665c}
+.sal-why-image{min-height:430px;background:url("../../../attached_assets/generated_images/end-of-life-concierge-hands.jpg") 61% center/cover no-repeat;border-radius:2px}
+.sal-services{background:#f1eee4;padding-top:88px;padding-bottom:100px}
+.sal-section-heading{text-align:center;max-width:660px;margin:0 auto 46px}
+.sal-section-heading .sal-eyebrow{margin-bottom:14px}
+.sal-section-heading h2{margin-bottom:12px}
+.sal-section-heading>p:last-child{color:var(--sal-muted);margin:0}
+.sal-service-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:17px}
+.sal-service-card{grid-column:span 2;background:#faf8f1;border:1px solid #e3dfd1;padding:27px 24px 24px;min-height:260px}
+.sal-service-card:nth-child(4){grid-column:2/span 2}.sal-service-card:nth-child(5){grid-column:4/span 2}
+.sal-service-icon{width:39px;height:39px;border-radius:50%;background:#e7e9dd;display:grid;place-items:center;color:#465c49;margin-bottom:19px}
+.sal-service-icon svg{width:20px}.sal-service-card h3{font:600 1.12rem/1.3 var(--font-serif);margin:0 0 16px}
+.sal-service-card ul{padding:0;margin:0;list-style:none;display:grid;gap:9px}
+.sal-service-card li{font-size:.84rem;line-height:1.5;color:#5c685e;display:flex;gap:9px}
+.sal-service-card li svg{width:14px;height:14px;flex:none;margin-top:3px;color:#8a7959}
+.sal-story{display:grid;grid-template-columns:.95fr 1.05fr;background:#e5e9df;min-height:500px}
+.sal-story-photo{background:url("../../../attached_assets/generated_images/end-of-life-concierge-hands.jpg") 53% center/cover no-repeat;min-height:420px}
+.sal-story-content{align-self:center;max-width:660px;padding:70px clamp(36px,8vw,120px)}
+.sal-story-content h2{font-size:clamp(2.8rem,4vw,4rem);line-height:1;margin:0 0 20px}
+.sal-story-content p:not(.sal-eyebrow){font-size:.98rem;line-height:1.8;color:#59665c}
+.sal-story-timeline{list-style:none;counter-reset:story;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;padding:18px 0;margin:12px 0;border-block:1px solid #c5cebf}
+.sal-story-timeline li{counter-increment:story;font-size:.8rem;line-height:1.5;display:flex;gap:8px;align-items:baseline}
+.sal-story-timeline li::before{content:counter(story,decimal-leading-zero);color:#796043;font-weight:600}
+.sal-text-link{color:#435c48!important;font-weight:600;text-decoration:none;display:inline-flex;gap:9px;align-items:center;margin-top:15px;border:0;background:none;padding:0;cursor:pointer;font:600 .93rem var(--font-sans)}
+.sal-text-link svg{width:16px;transition:transform .2s}.sal-text-link:hover svg{transform:translateX(3px)}
+.sal-steps{padding-top:100px;padding-bottom:108px}
+.sal-steps .sal-section-heading{margin-bottom:50px}
+.sal-step-list{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #d6d7c9}
+.sal-step{padding:25px 24px 0 0;display:flex;gap:16px}
+.sal-step>span{font:500 1.65rem var(--font-serif);color:#9b704d}
+.sal-step h3{font:600 1.13rem var(--font-serif);margin:6px 0 9px}
+.sal-step p{font-size:.88rem;line-height:1.7;color:#657168;margin:0}
+.sal-journey{padding:82px max(28px,calc((100vw - 1160px)/2));background:#3c5143;color:#f8f5ea;display:grid;grid-template-columns:.7fr 1.5fr;gap:65px;align-items:center}
+.sal-journey .sal-eyebrow{color:#d0c19e}.sal-journey h2{font-size:clamp(2.3rem,3.3vw,3.4rem);line-height:1.06;margin:0}
+.sal-journey h2 em{color:#d7bd91}
+.sal-journey-line{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.sal-journey-card{min-height:220px;padding:22px 20px;background:#f3efe4;color:#304235!important;text-decoration:none;display:flex;flex-direction:column;align-items:flex-start;transition:transform .2s,background-color .2s}
+.sal-journey-card:hover{transform:translateY(-3px);background:#faf8f1}
+.sal-journey-card>span{font-size:.63rem;font-weight:700;letter-spacing:.1em;color:#8a7151}
+.sal-journey-card h3{font:600 1.35rem/1.1 var(--font-serif);margin:19px 0 10px}
+.sal-journey-card p{font-size:.82rem;line-height:1.55;color:#647066;margin:0 0 18px}
+.sal-journey-card b{font-size:.75rem;margin-top:auto;display:flex;align-items:center;gap:8px}
+.sal-journey-card b svg{width:14px}.sal-journey-current{background:#e5e9df}
+.sal-faq{display:grid;grid-template-columns:.78fr 1.22fr;gap:90px;padding-top:100px;padding-bottom:108px}
+.sal-faq-intro h2{font-size:clamp(2.25rem,3.6vw,3.25rem)}
+.sal-faq-intro>p:not(.sal-eyebrow){color:var(--sal-muted);line-height:1.7}
+.sal-faq-list{border-top:1px solid #d8d7c8}
+.sal-faq-item{border-bottom:1px solid #d8d7c8}
+.sal-faq-item button{width:100%;border:0;background:none;padding:20px 2px;display:flex;justify-content:space-between;gap:18px;text-align:left;color:var(--sal-ink);font:600 1rem var(--font-sans);cursor:pointer}
+.sal-faq-item button svg{width:18px;flex:none;transition:transform .2s}.sal-faq-item button[aria-expanded=true] svg{transform:rotate(180deg)}
+.sal-faq-item>p{margin:-3px 30px 20px 2px;color:#657168;line-height:1.75;font-size:.91rem;animation:sal-reveal .24s ease both}
+@keyframes sal-reveal{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.sal-contact{padding:86px max(28px,calc((100vw - 1160px)/2));background:#e5e9df;display:grid;grid-template-columns:.85fr 1fr;gap:80px;align-items:start}
+.sal-contact-intro{padding-top:16px}.sal-contact-intro .sal-eyebrow{color:#72806f}
+.sal-contact-intro h2{font-size:clamp(2.7rem,4.3vw,4rem);line-height:1;margin:0 0 22px}
+.sal-contact-intro>p:not(.sal-eyebrow){max-width:390px;color:#5f6d62;line-height:1.75}
+.sal-contact-phone,.sal-contact-email{display:flex;width:max-content;align-items:center;gap:11px;text-decoration:none;font-weight:600;margin-top:20px}
+.sal-contact-phone{font:500 1.3rem var(--font-serif)}.sal-contact-phone svg{width:19px}
+.sal-contact-email{font-size:.92rem;border-bottom:1px solid #9aab9b;padding-bottom:3px;margin-top:12px}
+.sal-contact-intro small{display:block;color:#68766b;line-height:1.5;margin-top:30px;max-width:350px}
+.sal-form-wrap{background:#faf8f1;padding:30px clamp(22px,4vw,44px);box-shadow:0 12px 40px rgba(46,61,48,.06)}
+.sal-form-heading{display:flex;gap:13px;align-items:center;margin-bottom:22px}.sal-form-heading>svg{width:22px;color:#92754f}
+.sal-form-heading h3{font:600 1.45rem var(--font-serif);margin:0 0 4px}.sal-form-heading p{font-size:.82rem;color:#738074;margin:0}
+.sal-form{display:grid;gap:16px}.sal-form label{display:grid;gap:7px;font-size:.8rem;font-weight:600;color:#465449}
+.sal-form input:not([type=checkbox]){height:44px;border:1px solid #d7d8c9;border-radius:2px;background:#fffdf7;padding:0 11px;font:400 1rem var(--font-sans);color:#2c4035}
+.sal-form input:focus{outline:2px solid #819780;outline-offset:1px}
+.sal-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sal-consent{grid-template-columns:18px 1fr!important;align-items:start;gap:9px!important;font-size:.77rem!important;line-height:1.5;font-weight:400!important}
+.sal-consent input{margin:2px 0;width:16px;height:16px;accent-color:#394f40}
+.sal-privacy-note,.sal-form-foot{font-size:.73rem;line-height:1.55;color:#68766b;margin:0}.sal-privacy-note a{font-weight:600;text-underline-offset:3px}
+.sal-submit{justify-content:center;width:100%;margin-top:2px}
+.sal-form-error{color:#963d32;background:#f9e9e3;padding:10px 12px;font-size:.83rem;margin:0}
+.sal-success{min-height:390px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center}
+.sal-success-icon{width:46px;height:46px;border-radius:50%;background:#e2e9de;display:grid;place-items:center;color:#3c654a}
+.sal-success h3{font:500 2rem var(--font-serif);margin:22px 0 8px}
+.sal-success p{color:#5f6d62;line-height:1.75}.sal-success a{font-weight:600}
+.sal-honeypot{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.sal-disclaimer{max-width:1160px;width:calc(100% - 56px);margin:0 auto;padding:29px 0;display:flex;align-items:flex-start;gap:13px;color:#6d786d}
+.sal-disclaimer svg{width:18px;flex:none;margin-top:3px}.sal-disclaimer p{font-size:.77rem;line-height:1.65;margin:0}
+.sal-story-page{padding:36px max(24px,calc((100vw - 930px)/2)) 0}
+.sal-story-back{display:inline-flex;gap:9px;align-items:center;text-decoration:none;color:#596b5c!important;font-size:.86rem;font-weight:600}.sal-story-back svg{width:16px}
+.sal-story-article-head{text-align:center;max-width:770px;margin:65px auto 36px}
+.sal-story-article-head h1{font-size:clamp(3rem,7vw,5.4rem);line-height:1;margin:0 0 22px}
+.sal-story-dek{font:400 1.15rem/1.7 var(--font-serif);color:#627064;max-width:640px;margin:auto}
+.sal-story-article-image{height:410px;background:url("../../../attached_assets/generated_images/end-of-life-concierge-hands.jpg") center 47%/cover no-repeat}
+.sal-story-prose{max-width:670px;margin:54px auto 80px}
+.sal-story-prose p{font-size:1rem;line-height:1.9;color:#526156;margin:0 0 22px}
+.sal-story-prose blockquote{border-left:2px solid #a98461;padding:4px 0 4px 23px;margin:34px 0;font:italic 1.35rem/1.6 var(--font-serif);color:#3c5143}
+.sal-story-next{margin:0 calc(-1 * max(24px,calc((100vw - 930px)/2)));padding:65px max(24px,calc((100vw - 930px)/2));background:#e5e9df;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center}
+.sal-story-next h2{font-size:clamp(2.3rem,4vw,3.4rem);line-height:1;margin:0}
+.sal-story-next>div:nth-child(2)>p{line-height:1.7;color:#5b695e}.sal-story-phone{display:inline-flex;align-items:center;gap:8px;margin-left:18px;font-weight:600;text-decoration:none}.sal-story-phone svg{width:16px}
+@media(max-width:850px){.sal-hero{min-height:430px;grid-template-columns:1fr .8fr}.sal-hero-copy{padding:44px 26px}.sal-hero-image{min-height:430px}.sal-why{gap:36px}.sal-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sal-service-card,.sal-service-card:nth-child(4),.sal-service-card:nth-child(5){grid-column:auto}.sal-service-card:last-child{grid-column:1/-1}.sal-journey{grid-template-columns:1fr;gap:32px}.sal-faq{gap:40px}.sal-contact{gap:36px}.sal-step-list{grid-template-columns:repeat(2,1fr);row-gap:25px}}
+@media(max-width:600px){
+ .sal-hero{display:flex;flex-direction:column;min-height:0;padding-bottom:0}
+ .sal-hero-copy{padding:25px 22px 16px;order:1}
+ .sal-eyebrow{font-size:.61rem;letter-spacing:.12em;margin-bottom:12px}
+ .sal-hero h1{font-size:clamp(2.45rem,10.5vw,3.2rem);line-height:.99;margin-bottom:13px;max-width:450px}
+ .sal-hero-lede{font-size:.88rem;line-height:1.56}
+ .sal-hero-actions{gap:14px;margin-top:18px}
+ .sal-hero-actions .sal-button{min-height:44px;font-size:.88rem;padding:0 15px}
+ .sal-phone{font-size:.96rem}.sal-hero-note{font-size:.72rem;margin-top:8px}
+ .sal-hero-image{order:2;min-height:120px;height:120px;background-position:center 48%}
+ .sal-scroll-cue{display:none}
+ .sal-trust{gap:11px 15px;justify-content:flex-start;padding:13px 21px;font-size:.73rem}
+ .sal-trust-dot{display:none}.sal-trust div{gap:7px}.sal-trust svg{width:15px}
+ .sal-section{padding:63px 22px}.sal-why{display:flex;flex-direction:column;align-items:stretch;gap:25px;padding-top:67px;padding-bottom:66px}
+ .sal-copy h2,.sal-section-heading h2,.sal-faq-intro h2{font-size:2.55rem}
+ .sal-copy p:not(.sal-eyebrow){font-size:.91rem;line-height:1.75}
+ .sal-why-image{min-height:255px;background-position:62% center}
+ .sal-services{padding-top:63px;padding-bottom:68px}.sal-section-heading{margin-bottom:29px}
+ .sal-service-grid{grid-template-columns:1fr;gap:11px}.sal-service-card,.sal-service-card:last-child{grid-column:auto;min-height:0;padding:21px 19px}
+ .sal-service-card h3{font-size:1.13rem;margin-bottom:11px}.sal-service-card ul{gap:7px}
+ .sal-service-card li{font-size:.82rem}
+ .sal-story{grid-template-columns:1fr}.sal-story-photo{min-height:240px;height:240px;background-position:center 48%}
+ .sal-story-content{padding:39px 23px 44px}.sal-story-content h2{font-size:3rem}
+ .sal-steps{padding-top:65px;padding-bottom:70px}.sal-step-list{grid-template-columns:1fr;gap:0}
+ .sal-step{padding:18px 0;border-bottom:1px solid #deded1;gap:15px}.sal-step>span{font-size:1.4rem}.sal-step h3{margin:3px 0 6px}.sal-step p{font-size:.84rem}
+ .sal-journey{padding:58px 22px}.sal-journey-line{grid-template-columns:1fr;gap:9px}.sal-journey-card{min-height:166px;padding:19px}
+ .sal-journey h2{font-size:2.65rem}
+ .sal-faq{grid-template-columns:1fr;gap:26px;padding-top:65px;padding-bottom:68px}
+ .sal-faq-item button{font-size:.91rem;padding:18px 0}
+ .sal-contact{grid-template-columns:1fr;gap:28px;padding:57px 20px}
+ .sal-contact-intro h2{font-size:3rem}.sal-contact-intro small{margin-top:20px}
+ .sal-form-wrap{padding:22px 18px}.sal-form-row{grid-template-columns:1fr;gap:15px}
+ .sal-disclaimer{width:calc(100% - 44px);padding:24px 0}
+ .sal-story-page{padding:25px 21px 0}.sal-story-article-head{margin:46px auto 27px}
+ .sal-story-article-head h1{font-size:3.25rem}.sal-story-dek{font-size:1rem}
+ .sal-story-article-image{height:270px}.sal-story-prose{margin:35px auto 54px}
+ .sal-story-prose p{font-size:.92rem;line-height:1.8}.sal-story-prose blockquote{font-size:1.16rem}
+ .sal-story-next{margin:0 -21px;padding:43px 21px;grid-template-columns:1fr;gap:12px}
+ .sal-story-phone{margin:16px 0 0}
+}
+@media(prefers-reduced-motion:reduce){.sal-concierge *, .sal-story-page *{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}}
