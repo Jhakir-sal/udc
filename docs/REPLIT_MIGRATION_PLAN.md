@@ -18,6 +18,8 @@ Status legend: ✅ done · ⏳ planned (this doc) · ⚠️ requires a product/o
   - `npm run check` (tsc): pre-existing errors cataloged in §1 below — **not** fixed yet (out of scope for a Replit-decoupling pass except where the error is *in* code getting deleted/moved).
   - `npm run build`: passes (needs `PRODUCTION_SITE_URL` set at build time — see §1.5).
   - `npm test`: **76 pass / 11 fail**, baseline log in `/tmp/udc-test-baseline.log` (ephemeral). All 11 failures are `Error: DATABASE_URL environment variable is not set` thrown at import time by [server/db.ts](../server/db.ts) — expected with no Postgres yet, not a code regression. Re-run once Phase 13 wires a CI Postgres service.
+  - Separately, got the app running locally end-to-end: a dedicated `udc-postgres` Docker container, Node 22 LTS (several deps require ≥20.16/22 — Node 20.12 crashed on boot with `DOMMatrix is not defined` in `pdfjs-dist`), and a small platform-compatibility fix in [server/index.ts](../server/index.ts) (`httpServer.listen({ reusePort: true })` reports `ENOTSUP` on some macOS/Node combinations — now falls back to a plain `listen()`, a no-op on platforms like production Linux where `reusePort` works). Verified live: register/login/auth-gating/DB writes all work against a real Postgres instance.
+- **Phase 2 — Delete unused scaffolding:** done, see §Phase 2 below for exactly what was (and, importantly, was **not**) deleted, and the pre-existing test failures it surfaced (not caused by it).
 
 ---
 
@@ -60,7 +62,7 @@ This is **less work than NER** — the env-var fallback already exists and is ex
 |---|---|---|
 | [server/replit_integrations/object_storage/objectStorage.ts](../server/replit_integrations/object_storage/objectStorage.ts) | `ObjectStorageService` wraps `@google-cloud/storage`, authenticated via **Replit's local sidecar** at `http://127.0.0.1:1106` (`REPLIT_SIDECAR_ENDPOINT`) using Workload Identity Federation (`type: "external_account"`) | The sidecar only exists inside a Replit workspace/deployment — **this cannot run anywhere else, full stop**. Also reads `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS` |
 | [server/replit_integrations/object_storage/objectAcl.ts](../server/replit_integrations/object_storage/objectAcl.ts) | ACL policy model (`ObjectAclPolicy`, `canAccessObject`, `getObjectAclPolicy`/`setObjectAclPolicy` via GCS custom metadata) | None directly — pure logic, portable |
-| [server/replit_integrations/object_storage/routes.ts](../server/replit_integrations/object_storage/routes.ts) | `registerObjectStorageRoutes()` — generic example routes (`POST /api/uploads/request-url`, `GET /objects/*`). **Not actually mounted anywhere** (never imported outside the folder) — dead example code | none |
+| [server/replit_integrations/object_storage/routes.ts](../server/replit_integrations/object_storage/routes.ts) | `registerObjectStorageRoutes()` — **correction, this is load-bearing, not dead code** (an earlier draft of this doc got this wrong). It's called at `routes.ts:1129` and provides the actual `POST /api/uploads/request-url` endpoint (consumed by 8 client pages: document vault, connected-accounts, case-detail, blockchain portal, death-certificate upload, etc.) plus the fallback `GET /objects/*` handler that `routes.ts`'s own inline ACL-authorization middleware (`routes.ts:1039`, explicitly comments "registered BEFORE the generic object storage routes so it takes precedence") calls `next()` into after checking access. **Must be preserved**, only relocated in Phase 9. | none |
 
 **Real consumers** (23 call sites in [server/routes.ts](../server/routes.ts)) use `ObjectStorageService` directly for: death-certificate uploads, family documents, HeartPlan document vault, HeartPlan sealed legacy messages (audio/video), company upload packages. This is load-bearing across most of the app's file-upload surface.
 
@@ -105,17 +107,17 @@ and swap every `process.env.NODE_ENV === "production" && process.env.REPLIT_DEPL
 
 Same three packages as NER: `@replit/vite-plugin-runtime-error-modal` (always on), `@replit/vite-plugin-cartographer` + `@replit/vite-plugin-dev-banner` (conditional on `REPL_ID`) in [vite.config.ts](../vite.config.ts).
 
-### 1.7 Unused scaffolding (verified zero imports from app code)
+### 1.7 Unused scaffolding (verified zero imports from app code) — ✅ deleted in Phase 2
 
 | Path | Imported by app? | Action |
 |---|---|---|
-| [server/replit_integrations/batch/](../server/replit_integrations/batch/) | No (docstring reference only) | Delete |
-| [server/replit_integrations/chat/](../server/replit_integrations/chat/) | No | Delete |
-| [server/replit_integrations/image/](../server/replit_integrations/image/) | No | Delete |
-| [server/replit_integrations/audio/routes.ts](../server/replit_integrations/audio/routes.ts), [server/replit_integrations/audio/index.ts](../server/replit_integrations/audio/index.ts) | No — only `./replit_integrations/audio/client` is ever imported ([server/routes.ts:33](../server/routes.ts)) | Delete `routes.ts`/`index.ts`; keep `client.ts` only |
-| [server/replit_integrations/object_storage/routes.ts](../server/replit_integrations/object_storage/routes.ts) | No — `registerObjectStorageRoutes` is exported but never called | Delete (the real upload routes live inline in `routes.ts`) |
+| [server/replit_integrations/batch/](../server/replit_integrations/batch/) | No (docstring reference only) | Deleted |
+| [server/replit_integrations/chat/](../server/replit_integrations/chat/) | No | Deleted |
+| [server/replit_integrations/image/](../server/replit_integrations/image/) | No | Deleted |
+| `server/replit_integrations/audio/routes.ts`, `server/replit_integrations/audio/index.ts` | No — only `./replit_integrations/audio/client` is ever imported ([server/routes.ts:33](../server/routes.ts)) | Deleted; `client.ts` kept |
+| ~~`server/replit_integrations/object_storage/routes.ts`~~ | **Correction: actually called** at `routes.ts:1129` (`registerObjectStorageRoutes(app)`) | **Not deleted** — see §1.3 |
 
-Verification command (should match the table above exactly):
+Verification command (confirmed zero hits after the Phase 2 deletion):
 ```bash
 grep -R "replit_integrations/\(audio\|batch\|chat\|image\)" server client | grep -v "^server/replit_integrations/"
 ```
@@ -189,15 +191,22 @@ No `replit_integrations/` folder anywhere. No `@replit/*`, no `@google-cloud/sto
 
 ## 4. Phased plan (Phase 2 onward — Phase 0/1 already done, §0)
 
-### Phase 2 — Delete unused scaffolding ✅ low risk
+### Phase 2 — Delete unused scaffolding ✅ **done**
 ```bash
 rm -rf server/replit_integrations/batch
 rm -rf server/replit_integrations/chat
 rm -rf server/replit_integrations/image
 rm server/replit_integrations/audio/routes.ts server/replit_integrations/audio/index.ts
-rm server/replit_integrations/object_storage/routes.ts
 ```
-Validate: `npm run check` (error count should drop — see §1 of this doc for exactly which pre-existing tsc errors live in these files and disappear here vs. which are unrelated pre-existing bugs to leave alone).
+`server/replit_integrations/object_storage/routes.ts` was **not** deleted — see the §1.3/§1.7 correction above, it's load-bearing.
+
+**Validated:**
+- `npm run check`: the 13 tsc errors that lived in the deleted files are gone; the remaining 19 errors are byte-for-byte the same pre-existing, unrelated errors cataloged in §0 (`server/routes.ts` ×12, `shared/schema.ts` ×3, `server/storage.ts` ×2, `server/nerSearchRoutes.ts` ×2).
+- Live dev server (Postgres-backed, Node 22): booted clean, homepage 200, the two-stage `/objects/*` pipeline still 401s correctly for unauthenticated requests (proves `routes.ts`'s inline ACL middleware still runs), `POST /api/uploads/request-url` still reaches `registerObjectStorageRoutes`'s real handler and fails with the *expected* `PRIVATE_OBJECT_DIR not set` error (not a 404 — confirms the route is intact, object storage just isn't configured locally yet, which is Phase 6 work).
+- Full test suite re-run against the local Postgres instance for the first time ever in this environment surfaced **4 pre-existing, unrelated test failures** that were previously invisible (either the whole test *file* crashed at import for lack of `DATABASE_URL`, masking every individual assertion in it, or one specific test had a self-skip guard for "no DB available"). None of these are caused by Phase 2 — confirmed two of them (`heartPlanHousingVehicle.test.ts`: *"housing and vehicle profile fields remain outside limited advisor summary"*, *"new profile answers are redacted from concierge plan projections"*) have byte-for-byte identical failures already present in the Phase 1 baseline log, before Phase 2 touched anything. Logged here rather than fixed (out of scope — unrelated pre-existing bugs):
+  - `heartPlanAdminCompletion.test.ts` — a timezone bug: asserts `2026-01-04T00:00:00.000Z`, gets `...T05:00:00.000Z` (exactly the EST/UTC-5 offset) once the assertion actually executes against a real DB instead of self-skipping.
+  - `heartPlanIntakeReminders.test.ts` — "database reminder selection and claims exclude finished and demo plans" expects one specific reminder ID back, gets `[]`.
+  - `heartPlanHousingVehicle.test.ts` — two "golden source text" assertions (`readFileSync` + regex/`indexOf` against `routes.ts`'s raw text) that no longer match current `routes.ts` content — stale tests, not stale code; harmless to the app itself, but drifted and silently never re-validated because the whole file used to fail at import.
 
 ### Phase 3 — Remove Replit Vite plugins ✅ low risk
 Same as NER Phase 2: strip `runtimeErrorOverlay()` + the conditional `cartographer`/`dev-banner` imports from [vite.config.ts](../vite.config.ts); `npm uninstall @replit/vite-plugin-runtime-error-modal @replit/vite-plugin-cartographer @replit/vite-plugin-dev-banner`.
