@@ -171,6 +171,13 @@ process.on("unhandledRejection", (reason) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || "5000", 10);
+  // reusePort lets multiple processes share one port (useful in some
+  // container/hosting setups); not every platform supports it (e.g. it
+  // can report ENOTSUP after already binding successfully on some
+  // macOS/Node combinations used for local dev), so track whether we've
+  // actually started serving and only fall back to a plain listen() if we
+  // haven't.
+  let listening = false;
   httpServer.listen(
     {
       port,
@@ -178,9 +185,19 @@ process.on("unhandledRejection", (reason) => {
       reusePort: true,
     },
     () => {
+      listening = true;
       log(`serving on port ${port}`);
     },
-  );
+  ).on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOTSUP" && !listening) {
+      httpServer.listen(port, "0.0.0.0", () => {
+        listening = true;
+        log(`serving on port ${port} (reusePort unsupported on this platform)`);
+      });
+    } else if (err.code !== "ENOTSUP") {
+      throw err;
+    }
+  });
 })().catch((err) => {
   console.error("[FATAL] Server failed to start:", err);
   process.exit(1);
