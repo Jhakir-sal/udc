@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { sendAuthenticationSms } from "./authSms";
+import { getRingCentralServer } from "./ringcentral";
+
+test("RingCentral selects the requested environment and rejects invalid settings", () => {
+  assert.equal(getRingCentralServer(undefined), "https://platform.ringcentral.com");
+  assert.equal(getRingCentralServer("production"), "https://platform.ringcentral.com");
+  assert.equal(getRingCentralServer("sandbox"), "https://platform.devtest.ringcentral.com");
+  assert.throws(() => getRingCentralServer("sandbx"), /RINGCENTRAL_ENVIRONMENT/);
+});
 
 test("non-staff authentication texts retain Twilio without duplicate RingCentral submissions", async () => {
   let twilioCalls = 0;

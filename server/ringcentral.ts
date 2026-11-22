@@ -4,6 +4,12 @@ let rcClient: SDK | null = null;
 let rcPhoneNumber: string | null = null;
 let rcInitialized = false;
 
+export function getRingCentralServer(environment: string | undefined): string {
+  if (!environment || environment === "production") return "https://platform.ringcentral.com";
+  if (environment === "sandbox") return "https://platform.devtest.ringcentral.com";
+  throw new Error("RINGCENTRAL_ENVIRONMENT must be production or sandbox");
+}
+
 export async function initRingCentral(): Promise<boolean> {
   const clientId = process.env.RINGCENTRAL_CLIENT_ID;
   const clientSecret = process.env.RINGCENTRAL_CLIENT_SECRET;
@@ -24,7 +30,7 @@ export async function initRingCentral(): Promise<boolean> {
 
   try {
     rcClient = new SDK({
-      server: "https://platform.ringcentral.com",
+      server: getRingCentralServer(process.env.RINGCENTRAL_ENVIRONMENT),
       clientId,
       clientSecret,
     });

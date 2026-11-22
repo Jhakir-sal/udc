@@ -4,6 +4,9 @@
 
 Status legend: ✅ done · ⏳ planned (this doc) · ⚠️ requires a product/ops decision · 🔴 blocker
 
+For provider setup and local testing precautions before Phase 4, see
+[LOCAL_INTEGRATIONS.md](./LOCAL_INTEGRATIONS.md).
+
 ---
 
 ## 0. Already complete (Phase 0–1)
@@ -53,9 +56,9 @@ Status legend: ✅ done · ⏳ planned (this doc) · ⚠️ requires a product/o
 
 | File | What it does | Replit dependency |
 |---|---|---|
-| [server/stripeClient.ts](../server/stripeClient.ts) | `getStripeClient()` tries Replit Connectors REST API first, **falls back to `STRIPE_SECRET_KEY` env var already** | `REPLIT_CONNECTORS_HOSTNAME`, `REPL_IDENTITY`, `WEB_REPL_RENEWAL` |
+| [server/stripeClient.ts](../server/stripeClient.ts) | `getStripeClient()` and `getStripeIdentityClient()` use `STRIPE_SECRET_KEY` | Removed in Phase 4 |
 
-This is **less work than NER** — the env-var fallback already exists and is exercised today (`.env` has no Replit connector vars locally). Just delete the connector branch; `getStripeIdentityClient()` already only reads the env var.
+This is **less work than NER** — the direct `STRIPE_SECRET_KEY` fallback already existed. Phase 4 removed the Replit Connector lookup so both Stripe clients now use only the environment key.
 
 ### 1.3 Object storage — **UDC-specific, NER didn't have this**
 
@@ -215,10 +218,9 @@ Stripped `runtimeErrorOverlay()` + the conditional `cartographer`/`dev-banner` i
 **Validated:** `npm run check` unchanged (19 errors, same as Phase 2 — this phase doesn't touch server code); `npm run build` passes, `dist/public/index.html` has zero `replit` references (previously the dev-banner's `<script src="/@replit/vite-plugin-dev-banner/banner-script.js">` was live-injected in dev mode — confirmed gone from the served HTML after this change); `package.json` has zero `@replit/*` entries left.
 
 ### Phase 4 — Decouple Stripe from Replit Connectors ✅ low risk
-1. Rewrite [server/stripeClient.ts](../server/stripeClient.ts): delete `getConnectorSecretKey()`, `getStripeClient()`/`getStripeIdentityClient()` read `STRIPE_SECRET_KEY` directly.
-2. Grep for any other `REPLIT_CONNECTORS_HOSTNAME`/`REPL_IDENTITY`/`WEB_REPL_RENEWAL` reads — none found outside `stripeClient.ts` today.
+Removed `getConnectorSecretKey()` from [server/stripeClient.ts](../server/stripeClient.ts). Both client factories use only `STRIPE_SECRET_KEY`; Replit Connector environment variables are no longer read in application code. Added an offline test verifying valid keys construct both clients, invalid keys return `null`, and no connector network request is made.
 
-Validate: Stripe Checkout (service plans, HeartPlan upgrade) still creates sessions in test mode; webhook signature verification already works independent of Connectors ([server/stripeWebhookVerification.ts](../server/stripeWebhookVerification.ts)).
+**Validated:** `server/stripeClient.test.ts` passes without live Stripe credentials. Checkout session creation still requires a valid Stripe test-mode key and a controlled end-to-end test; credentials are not present in the local environment, so that external operation was not exercised. Webhook signature verification remains independent of Connectors ([server/stripeWebhookVerification.ts](../server/stripeWebhookVerification.ts)).
 
 ### Phase 5 — Replace Replit Auth with email/password + Entra ID scaffold ✅ medium
 1. Move session/passport setup out of `replitAuth.ts` into `server/auth/session.ts`, keeping `establishPasswordSession` and `isAuthenticated`.

@@ -27,7 +27,7 @@ export function getAppUrl(): string {
   if (deployedDomain) {
     return `https://${deployedDomain}`;
   }
-  return "http://localhost:5000";
+  return `http://localhost:${process.env.PORT || "5000"}`;
 }
 
 if (SENDGRID_API_KEY) {
