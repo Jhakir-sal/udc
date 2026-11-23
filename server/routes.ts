@@ -6,9 +6,10 @@ import { registerDisabledNaicSearch } from "./naicSafety";
 import { registerCompanyReportingResearch } from "./companyReportingResearch";
 import { matchesMfaCode } from "./verificationCodePurpose";
 import { z } from "zod";
-import { setupAuth, registerAuthRoutes, isAuthenticated, createPasswordLoginHandler } from "./replit_integrations/auth";
-import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
-import OpenAI from "openai";
+import { setupAuth, registerAuthRoutes, isAuthenticated, createPasswordLoginHandler } from "./auth";
+import { registerObjectStorageRoutes, ObjectStorageService } from "./integrations/object-storage";
+import { createOpenAIClient } from "./openaiClient";
+import { isProductionDeployment } from "./deploymentEnv";
 import { PDFParse } from "pdf-parse";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
@@ -30,7 +31,7 @@ import { EventWebhook } from "@sendgrid/eventwebhook";
 import { canonicalDestination, permissionsFor, requiresMfa, sessionProfile } from "./authPolicy";
 import { issueMfaChallenge, mfaDeliveryDetails } from "./mfa";
 import { sendAuthenticationSms } from "./authSms";
-import { inspectMedia, speechToText } from "./replit_integrations/audio/client";
+import { inspectMedia, speechToText } from "./integrations/audio/client";
 import { canReadReleasedPlanLetter, isPlanLetterAddressedToEmail, validateStoredPlanMessageMedia } from "./planMessages";
 import { renderLpoaDocument } from "./lpoaDocument";
 import { buildCompanyDocumentPackage, certificateFilename } from "./companyDocumentPackage";
@@ -451,10 +452,10 @@ async function analyzeFamilyDocument(documentId: string): Promise<void> {
     const contentType = document.contentType || "";
     if (!FAMILY_DOCUMENT_ANALYSIS_TYPES.includes(contentType as any)) throw new Error("This file type cannot be scanned.");
     const file = await new ObjectStorageService().getObjectEntityFile(document.objectPath);
-    const [metadata] = await file.getMetadata();
-    const size = Number(metadata.size || 0);
+    const metadata = await file.getProperties();
+    const size = Number(metadata.contentLength || 0);
     if (!Number.isSafeInteger(size) || size <= 0 || size > FAMILY_DOCUMENT_ANALYSIS_MAX_BYTES) throw new Error("The document exceeds the scanning limit.");
-    const [bytes] = await file.download();
+    const bytes = await file.downloadToBuffer();
     const base64 = bytes.toString("base64");
     let userContent: any;
     if (contentType === "application/pdf") {
@@ -472,7 +473,7 @@ async function analyzeFamilyDocument(documentId: string): Promise<void> {
         { type: "image_url", image_url: { url: `data:${contentType};base64,${base64}` } },
       ];
     }
-    const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+    const openai = createOpenAIClient();
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
       response_format: { type: "json_object" },
@@ -789,7 +790,7 @@ export async function registerRoutes(
     if (!id.success || req.body?.confirmed !== true || typeof req.body?.phone !== "string") {
       return res.status(400).json({ error: "Review and confirm this member and phone before sending." });
     }
-    if (process.env.NODE_ENV !== "production" || process.env.REPLIT_DEPLOYMENT !== "1") return res.status(403).json({ error: "Campaign delivery is disabled outside the published app." });
+    if (!isProductionDeployment()) return res.status(403).json({ error: "Campaign delivery is disabled outside the published app." });
     if (!isRingCentralConfigured()) return res.status(503).json({ error: "SMS delivery is not configured." });
     const actor = req.session?.userId || req.user?.claims?.sub;
     let claimed: { phone: string; name: string | null };
@@ -823,7 +824,7 @@ export async function registerRoutes(
       new Set(recipients.map((r) => r.phone)).size !== recipients.length) {
       return res.status(400).json({ error: "The confirmed batch contains a repeated member or phone." });
     }
-    if (process.env.NODE_ENV !== "production" || process.env.REPLIT_DEPLOYMENT !== "1") {
+    if (!isProductionDeployment()) {
       return res.status(403).json({ error: "Text delivery is disabled outside the published app." });
     }
     if (!isRingCentralConfigured()) return res.status(503).json({ error: "SMS delivery is not configured." });
@@ -1374,7 +1375,7 @@ export async function registerRoutes(
     return sess?.registrationUserId === userId || sess?.userId === userId;
   }
 
-  // Note: /api/auth/user endpoint is now in replit_integrations/auth/routes.ts
+  // Note: /api/auth/user endpoint is registered by the shared auth routes.
   // It supports both SSO and email/password session authentication
 
   // Team membership is issued by an administrator. Public domain-based enrollment
@@ -4241,10 +4242,7 @@ ${JSON.stringify(caseContext, null, 2)}
 
 Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
 
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const openai = createOpenAIClient();
 
       const history = messages.slice(-20);
       const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
@@ -4686,10 +4684,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
 
       const systemPrompt = buildSallySystemPrompt({ userContext, currentPath, suggestContact });
 
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const openai = createOpenAIClient();
 
       const reply = await completeSallyAnswer({ client: openai, systemPrompt, history });
       const contactPhone = "888-557-2083";
@@ -5886,10 +5881,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
         return res.status(400).json({ error: "Image URL or data URL required" });
       }
       
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const openai = createOpenAIClient();
       
       // Use the data URL or image URL directly
       let imageSource = imageDataUrl || imageUrl;
@@ -7519,8 +7511,8 @@ Return ONLY the JSON object, no markdown, no explanation.`
         throw Object.assign(new Error("The signed LPOA is no longer valid for release. Please contact Steps After Life."), { status: 409 });
       }
       const file = await new ObjectStorageService().getObjectEntityFile(result.row.certificate.documentUrl);
-      const [metadata] = await file.getMetadata();
-      const [contents] = await file.download();
+      const metadata = await file.getProperties();
+      const contents = await file.downloadToBuffer();
       const mime = String(metadata.contentType || "").split(";")[0].toLowerCase();
       const filename = certificateFilename(mime);
       const payload = isPackage && lpoa
@@ -8595,11 +8587,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       }
 
       // Use OpenAI for NER extraction
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const openai = createOpenAIClient();
 
       const prompt = `Analyze the following death certificate information and extract named entities that would be useful for matching against estate, trust, and will registries.
 
@@ -9298,10 +9286,7 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ error: "Image appears too small or corrupted. Please try a different file." });
       }
 
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const openai = createOpenAIClient();
 
       if (mimeType === 'application/pdf') {
         const pdfText = await extractTextFromPdf(base64Data);
@@ -11648,8 +11633,8 @@ Return ONLY valid JSON:
       }
       const objectService = new ObjectStorageService();
       const objectFile = await objectService.getObjectEntityFile(parsed.data.objectPath);
-      const [objectMetadata] = await objectFile.getMetadata();
-      const actualFileSize = Number(objectMetadata.size);
+      const objectMetadata = await objectFile.getProperties();
+      const actualFileSize = Number(objectMetadata.contentLength);
       if (!Number.isSafeInteger(actualFileSize) || actualFileSize <= 0 || actualFileSize > 10 * 1024 * 1024) {
         await objectService.deleteObjectEntity(parsed.data.objectPath);
         return res.status(400).json({ error: "The uploaded file size is invalid or exceeds the 10 MB per-file limit" });
@@ -12638,12 +12623,12 @@ Return ONLY valid JSON:
       }
       const objects = new ObjectStorageService();
       const file = await objects.getObjectEntityFile(letter.pendingObjectPath);
-      const [metadata] = await file.getMetadata();
+      const metadata = await file.getProperties();
       const invalid = validateStoredPlanMessageMedia(letter.messageType, {
         contentType: letter.pendingContentType,
         fileSize: letter.pendingFileSize,
         durationSeconds: parsed.data.durationSeconds,
-      }, metadata);
+      }, { contentType: metadata.contentType, size: metadata.contentLength });
       if (invalid) {
         await objects.deleteObjectEntity(letter.pendingObjectPath).catch(() => undefined);
         await storage.updatePlanLetter(letter.id, {
@@ -12652,7 +12637,7 @@ Return ONLY valid JSON:
         });
         return res.status(400).json({ error: invalid });
       }
-      const [mediaBuffer] = await file.download();
+      const mediaBuffer = await file.downloadToBuffer();
       const mediaInfo = await inspectMedia(mediaBuffer).catch(() => null);
       if (!mediaInfo || !mediaInfo.hasAudio ||
           (letter.messageType === "audio" && mediaInfo.hasVideo) ||
@@ -13338,7 +13323,7 @@ Return ONLY valid JSON:
               attachments
                 .filter((attachment) => attachment.contentType.startsWith("image/"))
                 .map(async (attachment) => {
-                  const [data] = await (await objects.getObjectEntityFile(attachment.objectPath)).download();
+                  const data = await (await objects.getObjectEntityFile(attachment.objectPath)).downloadToBuffer();
                   return {
                     fileName: attachment.fileName,
                     contentType: attachment.contentType as "image/jpeg" | "image/png" | "image/webp",
@@ -13469,8 +13454,8 @@ Return ONLY valid JSON:
         .limit(1);
       if (!attachment || attachment.valuationId) return res.status(404).json({ message: "Pending evidence not found" });
       const file = await objects.getObjectEntityFile(attachment.objectPath);
-      const [metadata] = await file.getMetadata();
-      const actualSize = Number(metadata.size);
+      const metadata = await file.getProperties();
+      const actualSize = Number(metadata.contentLength);
       const actualType = String(metadata.contentType || "").toLowerCase();
       if (!Number.isSafeInteger(actualSize) || actualSize !== attachment.fileSize || actualType !== attachment.contentType) {
         const [tombstoned] = await db.update(hardAssetValuationAttachments)
@@ -13484,7 +13469,7 @@ Return ONLY valid JSON:
         if (tombstoned) await objects.deleteObjectEntity(tombstoned.objectPath);
         return res.status(400).json({ message: "Uploaded evidence is not a valid supported file" });
       }
-      const [fileContents] = await file.download();
+      const fileContents = await file.downloadToBuffer();
       if (!isVerifiedValuationEvidenceUpload({
         expectedContentType: attachment.contentType,
         expectedSize: attachment.fileSize,

@@ -9,7 +9,7 @@ import {
   updateMarketplaceProviderSchema,
   type MarketplaceCategory,
 } from "@shared/schema";
-import { isAuthenticated } from "./replit_integrations/auth";
+import { isAuthenticated } from "./auth";
 import { storage } from "./storage";
 
 const isAdmin: RequestHandler = async (req: any, res, next) => {

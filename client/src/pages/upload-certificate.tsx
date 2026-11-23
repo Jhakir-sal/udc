@@ -204,7 +204,7 @@ export default function UploadCertificate() {
       });
       if (urlRes.ok) {
         const { uploadURL, objectPath } = await urlRes.json();
-        const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        const putRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" } });
         if (putRes.ok) {
           setDocumentObjectPath(objectPath);
         }

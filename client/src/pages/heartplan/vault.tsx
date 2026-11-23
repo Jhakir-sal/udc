@@ -110,7 +110,7 @@ export default function HeartPlanVault() {
           fileSize: file.size,
         });
         const { uploadURL, objectPath } = await metaRes.json();
-        const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" } });
         if (!uploadRes.ok) throw new Error("Upload failed");
         await apiRequest("POST", "/api/heartplan/documents", {
           label: file.name.replace(/\.[^.]+$/, ""),

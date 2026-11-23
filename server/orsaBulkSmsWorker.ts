@@ -3,10 +3,12 @@ import { db } from "./db";
 import { orsaBulkSmsRecipients as recipients, orsaBulkSmsRuns as runs, orsaSmsCampaign as phones } from "@shared/schema";
 import { bulkSmsClock } from "./orsaBulkSmsPolicy";
 import { freshBulkSmsMember } from "./orsaBulkSmsAudience";
-import { finishOrsaSms, orsaSmsClaimStillAllowed } from "./orsaSmsCampaign";
+import { finishOrsaSms, isCurrentOrsaHeartPlanText, orsaSmsClaimStillAllowed } from "./orsaSmsCampaign";
 import { isRingCentralConfigured, submitSmsViaRingCentral } from "./ringcentral";
+import { isProductionDeployment } from "./deploymentEnv";
+import { getAppUrl } from "./email";
 
-const liveDelivery = () => process.env.NODE_ENV === "production" && process.env.REPLIT_DEPLOYMENT === "1";
+const liveDelivery = isProductionDeployment;
 export const bulkSmsDeliveryEnabled = () => liveDelivery() && isRingCentralConfigured();
 
 // No retry of an attempt whose provider outcome is unknown. A crash can delay
@@ -39,7 +41,17 @@ export async function dispatchBulkSmsTick(now = new Date(), delivery = {
     const lock = await tx.execute(sql`select pg_try_advisory_xact_lock(hashtext('orsa-bulk-sms-dispatch')) as locked`);
     if (!lock.rows[0]?.locked) return null;
     const [run] = await tx.select().from(runs).where(and(eq(runs.status, "running"), ...(onlyRunId ? [eq(runs.id, onlyRunId)] : []))).for("update").limit(1);
-    if (!run || run.scheduledAt > now || (run.nextAttemptAt && run.nextAttemptAt > now)) return null;
+    if (!run) return null;
+    if (!isCurrentOrsaHeartPlanText(run.message, `${getAppUrl()}/orsa/heartplan`)) {
+      await tx.update(runs).set({
+        status: "paused",
+        pauseReason: "Campaign message does not match the current landing page. Create and review a new draft.",
+        updatedAt: now,
+      }).where(eq(runs.id, run.id));
+      console.error("[ORSA bulk SMS] Paused a run with an outdated campaign message.");
+      return null;
+    }
+    if (run.scheduledAt > now || (run.nextAttemptAt && run.nextAttemptAt > now)) return null;
     const clock = bulkSmsClock(run.timezone, now);
     if (!clock.withinHours) return null;
     const attempts = run.dayKey === clock.dayKey ? run.dayAttempts : 0;
@@ -129,7 +141,13 @@ export async function dispatchBulkSmsTick(now = new Date(), delivery = {
 let started = false;
 let busy = false;
 export function startBulkSmsWorker() {
-  if (started || !liveDelivery()) return;
+  if (started) return;
+  if (!liveDelivery()) {
+    if (process.env.NODE_ENV === "production") {
+      console.warn("[ORSA bulk SMS] Worker disabled: this is not an explicitly identified production slot.");
+    }
+    return;
+  }
   started = true;
   const timer = setInterval(async () => {
     if (busy) return;

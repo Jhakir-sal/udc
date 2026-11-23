@@ -28,12 +28,13 @@ export function registerObjectStorageRoutes(app: Express): void {
    *
    * Response:
    * {
-   *   "uploadURL": "https://storage.googleapis.com/...",
+   *   "uploadURL": "https://<account>.blob.core.windows.net/...?<sas>",
    *   "objectPath": "/objects/uploads/uuid"
    * }
    *
    * IMPORTANT: The client should NOT send the file to this endpoint.
-   * Send JSON metadata only, then upload the file directly to uploadURL.
+   * Send JSON metadata only, then PUT the file to uploadURL with
+   * x-ms-blob-type: BlockBlob.
    */
   app.post("/api/uploads/request-url", async (req, res) => {
     try {

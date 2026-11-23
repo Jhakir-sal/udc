@@ -560,7 +560,7 @@ export default function CaseDetailPage() {
       const uploadRes = await fetch(uploadURL, {
         method: "PUT",
         body: file,
-        headers: { "Content-Type": file.type },
+        headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" },
       });
       if (!uploadRes.ok) throw new Error("Upload failed");
 
@@ -829,7 +829,7 @@ export default function CaseDetailPage() {
         contentType: file.type,
       });
       const { uploadURL, objectPath } = await metaRes.json();
-      const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+      const uploadRes = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" } });
       if (!uploadRes.ok) throw new Error("Upload failed");
       await apiRequest("POST", `/api/admin/family-accounts/${acctId}/documents`, {
         label: file.name.replace(/\.[^.]+$/, ""),

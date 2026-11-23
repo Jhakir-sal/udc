@@ -27,7 +27,7 @@ import {
   verifyEmailAndAcceptOrsaInvitation,
 } from "./orsaService";
 import { StripeWebhookVerificationError, verifyStripeWebhook } from "./stripeWebhookVerification";
-import { isAuthenticated } from "./replit_integrations/auth/replitAuth";
+import { isAuthenticated } from "./auth";
 import { users } from "@shared/models/auth";
 import { readFile } from "node:fs/promises";
 import { ORSA_RECONCILIATION_STALE_MS, reconcileOrsaBilling } from "./orsaBillingReconciler";

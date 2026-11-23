@@ -7,10 +7,10 @@ import session from "express-session";
 import bcrypt from "bcrypt";
 import type { User } from "@shared/models/auth";
 import {
-  getSession,
-} from "./replit_integrations/auth/replitAuth";
-import { createPasswordLoginHandler } from "./replit_integrations/auth/passwordLogin";
-import { registerAuthRoutes } from "./replit_integrations/auth/routes";
+  getSession, setupAuth,
+} from "./auth/session";
+import { createPasswordLoginHandler } from "./auth/passwordLogin";
+import { registerAuthRoutes } from "./auth/routes";
 
 function testUser(role: User["role"]): User {
   return {
@@ -115,4 +115,43 @@ test("a successful proxied login establishes a session for the next browser requ
     assert.equal(profile.role, "planner");
     assert.equal(profile.destination, "/heartplan");
   }
+});
+
+test("disabled Entra ID keeps the legacy auth URLs safe and advertises password-only sign-in", async (t) => {
+  const previousSecret = process.env.SESSION_SECRET;
+  const previousEntraSetting = process.env.AUTH_ENABLE_ENTRA_ID;
+  process.env.SESSION_SECRET = "test-session-secret-that-is-long-enough";
+  process.env.AUTH_ENABLE_ENTRA_ID = "false";
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.SESSION_SECRET;
+    else process.env.SESSION_SECRET = previousSecret;
+    if (previousEntraSetting === undefined) delete process.env.AUTH_ENABLE_ENTRA_ID;
+    else process.env.AUTH_ENABLE_ENTRA_ID = previousEntraSetting;
+  });
+
+  const app = express();
+  await setupAuth(app, new session.MemoryStore());
+  registerAuthRoutes(app);
+  const server = createServer(app);
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  t.after(() => server.close());
+
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+
+  const providers = await fetch(`${baseUrl}/api/auth/providers`);
+  assert.deepEqual(await providers.json(), { emailPassword: true, entraId: false });
+  assert.match(providers.headers.get("cache-control") || "", /no-store/);
+
+  const login = await fetch(`${baseUrl}/api/login`, { redirect: "manual" });
+  assert.equal(login.status, 302);
+  assert.equal(login.headers.get("location"), "/login");
+  const callback = await fetch(`${baseUrl}/api/callback`, { redirect: "manual" });
+  assert.equal(callback.status, 302);
+  assert.equal(callback.headers.get("location"), "/login?sso=disabled");
+  const logout = await fetch(`${baseUrl}/api/logout`, { redirect: "manual" });
+  assert.equal(logout.status, 302);
+  assert.equal(logout.headers.get("location"), "/login");
 });

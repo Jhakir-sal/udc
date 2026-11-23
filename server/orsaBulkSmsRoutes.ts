@@ -6,7 +6,7 @@ import { orsaBulkSmsRecipients as recipients, orsaBulkSmsRuns as runs, orsaRoste
 import { bulkSmsAudience } from "./orsaBulkSmsAudience";
 import { bulkSmsInput } from "./orsaBulkSmsPolicy";
 import { bulkSmsDeliveryEnabled, startBulkSmsWorker } from "./orsaBulkSmsWorker";
-import { orsaHeartPlanText } from "./orsaSmsCampaign";
+import { isCurrentOrsaHeartPlanText, orsaHeartPlanText } from "./orsaSmsCampaign";
 import { getOutreachPublishedBaseUrl } from "./outreachRoutes";
 
 export function registerBulkSmsRoutes(app: Express, authenticated: RequestHandler, admin: RequestHandler) {
@@ -90,6 +90,9 @@ export function registerBulkSmsRoutes(app: Express, authenticated: RequestHandle
       const [run] = await tx.select().from(runs).where(eq(runs.id, String(req.params.id))).for("update");
       if (!run) fail(404, "Campaign not found.");
       if (!["draft", "paused"].includes(run.status)) fail(409, "Only draft or paused campaigns can start.");
+      if (!isCurrentOrsaHeartPlanText(run.message, `${getOutreachPublishedBaseUrl()}/orsa/heartplan`)) {
+        fail(409, "Campaign message does not match the current landing page. Create and review a new draft.");
+      }
       await tx.update(runs).set({ status: "running", approvedBy: actor, pauseReason: null, updatedAt: new Date() }).where(eq(runs.id, run.id));
       await tx.insert(orsaRosterAudits).values({ actorUserId: actor, action: "bulk_sms_started_provider_limits_attested", affectedCount: 1 });
     });

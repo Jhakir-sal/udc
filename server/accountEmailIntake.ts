@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { createOpenAIClient } from "./openaiClient";
 import type { Express, RequestHandler } from "express";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -26,13 +26,9 @@ export function redactAccountEmail(text: string): string {
 const modelResultSchema = z.object({ accounts: z.array(intakeAccountSchema).max(20) }).strict();
 
 export async function extractPastedAccounts(text: string): Promise<IntakeAccount[]> {
-  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) throw new Error("AI_UNAVAILABLE");
+  if (!process.env.OPENAI_API_KEY?.trim()) throw new Error("AI_UNAVAILABLE");
   const safeText = redactAccountEmail(text);
-  const client = new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-    timeout: 30_000, maxRetries: 0,
-  });
+  const client = createOpenAIClient({ timeout: 30_000, maxRetries: 0 });
   const result = await client.chat.completions.create({
     model: "gpt-4o", temperature: 0, max_completion_tokens: 3500,
     response_format: { type: "json_object" },

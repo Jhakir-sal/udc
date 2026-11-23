@@ -84,7 +84,15 @@ test("6001-recipient draft and durable worker preserve consent provenance, rate 
     assert.equal(details.run.counts.pending, 6001);
     assert.equal((await request(`/${runId}/start`, { confirmed: true })).status, 400);
     assert.equal((await request(`/${runId}/start`, { confirmed: true, providerLimitsConfirmed: true })).status, 403, "Development never enables actual delivery");
-    await db.update(runs).set({ status: "running", approvedBy: actor }).where(eq(runs.id, runId));
+    const [originalRun] = await db.select().from(runs).where(eq(runs.id, runId));
+    await db.update(runs).set({ status: "running", approvedBy: actor, message: "Old campaign https://old.invalid/orsa/heartplan" }).where(eq(runs.id, runId));
+    await dispatchBulkSmsTick(now, fakeDelivery, runId);
+    const [outdated] = await db.select().from(runs).where(eq(runs.id, runId));
+    assert.equal(outdated.status, "paused");
+    assert.match(outdated.pauseReason!, /current landing page/);
+    assert.equal(outbound.length, 0, "Outdated runs pause before contacting the provider");
+    assert.equal((await db.select().from(orsaSmsCampaign).where(inArray(orsaSmsCampaign.phone, phones))).length, 0);
+    await db.update(runs).set({ status: "running", approvedBy: actor, message: originalRun.message }).where(eq(runs.id, runId));
     await dispatchBulkSmsTick(new Date("2030-01-02T13:00:00Z"), fakeDelivery, runId);
     assert.equal(outbound.length, 0);
     await Promise.all([dispatchBulkSmsTick(now, fakeDelivery, runId), dispatchBulkSmsTick(now, fakeDelivery, runId)]);

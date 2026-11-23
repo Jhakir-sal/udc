@@ -8,12 +8,13 @@ import { complimentaryOrsaLegacyIsActive } from "@shared/orsaLegacyOffer";
 import { buildOrsaRosterInvitationEmail, isEmailDeliveryConfigured, sendEmail } from "./email";
 import { claimOrsaInvitation, finishOrsaInvitation } from "./orsaService";
 import {
-  eligibleOrsaCampaignRecipients, isProductionCampaignEnvironment,
+  eligibleOrsaCampaignRecipients,
   savePreview, getPreview, createRun, getRun, pauseRun, getOptoutsReviewed,
 } from "./orsaEmailCampaign";
 import type { CampaignSnapshotRecipient } from "./orsaEmailCampaignRetry";
 import { isRetrySnapshot } from "./orsaEmailCampaignRetry";
 import { finishWarmupReservation, getWarmupOverview, pauseWarmup, reserveWarmup, warmupConfirmationReason } from "./orsaWarmup";
+import { isProductionDeployment } from "./deploymentEnv";
 
 const TEMPLATE_ID = "account-activation";
 const BASE = "/api/admin/orsa/account-invitations";
@@ -119,7 +120,7 @@ export function registerOrsaAccountInvitationRoutes(
     audience: loadLiveAudience, savePreview, getPreview, createRun, getRun, pauseRun: (id) => pauseRun(id, true),
     claim: claimOrsaInvitation, finish: finishOrsaInvitation, stillAllowed: claimStillAllowed,
     send: sendEmail, build: buildOrsaRosterInvitationEmail,
-    configured: isEmailDeliveryConfigured, production: () => isProductionCampaignEnvironment(),
+    configured: isEmailDeliveryConfigured, production: isProductionDeployment,
     reviewed: getOptoutsReviewed, now: () => new Date(),
     reserveWarmup, finishWarmup: finishWarmupReservation, pauseWarmup,
     warmingReason: warmupConfirmationReason, warmingOverview: getWarmupOverview, ...overrides,

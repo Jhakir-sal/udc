@@ -15,16 +15,45 @@ NODE_ENV=development ~/.nvm/versions/node/v22.23.5/bin/node --env-file=.env ./no
 
 The local database container must be running. Use the `PORT` already set in
 `.env` (currently 5050). Email links fall back to that localhost port unless a
-Replit domain is configured. Do not set `REPLIT_DEPLOYMENT=1` locally: the
-existing ORSA campaign-delivery safeguards rely on it.
+`PUBLIC_APP_URL` is configured. Set it to an absolute HTTP(S) origin (for
+example, `http://localhost:5050`) when testing externally reachable links.
+Never set `WEBSITE_SLOT_NAME=production` locally. Campaign delivery requires
+both `NODE_ENV=production` and `WEBSITE_SLOT_NAME=production`; an unset or
+staging slot disables it. Other transactional provider calls can still send.
+
+## Microsoft Entra ID sign-in
+
+Email/password remains enabled. Entra SSO is disabled unless
+`AUTH_ENABLE_ENTRA_ID=true`. To enable it, register a single-tenant web
+application in Microsoft Entra ID and set these values in the ignored `.env`:
+
+```dotenv
+AUTH_ENABLE_ENTRA_ID=true
+OIDC_TENANT_ID=
+# Optional; defaults to https://login.microsoftonline.com/<tenant-guid>/v2.0
+OIDC_ISSUER=
+OIDC_CLIENT_ID=
+OIDC_CLIENT_SECRET=
+OIDC_CALLBACK_URL=http://localhost:5050/api/callback
+# Optional; defaults to the callback origin + /login
+OIDC_POST_LOGOUT_REDIRECT_URL=http://localhost:5050/login
+```
+
+Register the exact local callback URL with the Entra application, and use the
+same redirect origin for post-logout. `OIDC_TENANT_ID` must be a tenant GUID;
+the issuer must be that tenant's Microsoft v2.0 endpoint. SSO only signs in
+existing application accounts whose email is already verified; it does not
+create accounts or change roles. Staff and users requiring MFA still receive
+the app's existing MFA challenge. Enabling this flow triggers live Entra
+discovery at server startup and may send real MFA messages on successful sign-in.
+Use a test tenant and test accounts.
 
 ## Credentials to add
 
 Enter values directly in `.env`, replacing any existing placeholder rather than
 adding duplicate keys. Leave an integration unconfigured until its test
-credentials are available; an empty OpenAI key can prevent startup because the
-audio client is created at import time. The existing placeholder is not a
-working credential.
+credentials are available. An empty OpenAI key disables AI requests but does
+not prevent startup.
 
 ```dotenv
 # SendGrid: use a verified sender and an appropriately scoped API key.
@@ -50,9 +79,8 @@ STRIPE_SECRET_KEY=
 # Only for signed webhook testing; use the local listener's signing secret.
 STRIPE_WEBHOOK_SECRET=
 
-# Direct OpenAI API. This application still uses the Replit-era variable names.
-AI_INTEGRATIONS_OPENAI_API_KEY=
-AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1
+# Direct OpenAI API. Use a valid OpenAI API key, not a Replit Gateway key.
+OPENAI_API_KEY=
 ```
 
 `FROM_EMAIL` must be a sender verified in the SendGrid account. The application
@@ -81,8 +109,50 @@ sessions, so only use test-mode credentials and synthetic identities.
 
 Direct OpenAI calls may incur charges and transmit input data to OpenAI. The app
 uses `gpt-4o`, `gpt-5.2`, and `gpt-4o-mini-transcribe` in active features;
-access depends on the OpenAI account. Hard-asset valuation requires both the
-key and base URL above. Use synthetic data for testing.
+access depends on the OpenAI account. All AI features, including hard-asset
+valuation and audio transcription, require `OPENAI_API_KEY`. The application
+uses the direct `https://api.openai.com/v1` endpoint; the old
+`AI_INTEGRATIONS_OPENAI_*` settings are no longer read. If your old key is a
+valid direct OpenAI API key, enter it as `OPENAI_API_KEY` privately; a Replit
+Gateway key is not a substitute. Use synthetic data for testing.
+
+## Azure Blob Storage
+
+The application stores private files in a private Azure container. For local
+development, use an Azurite Blob endpoint or a development storage account; do
+not use production storage with local or synthetic data. Configure one of:
+
+```dotenv
+# Local Azurite example; create the configured containers before starting the app.
+AZURE_STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true
+# Alternatively, use an account URL with DefaultAzureCredential (for example,
+# Azure CLI credentials locally or managed identity when hosted in Azure):
+# AZURE_STORAGE_ACCOUNT_URL=https://<account>.blob.core.windows.net
+AZURE_STORAGE_PRIVATE_CONTAINER=private
+AZURE_STORAGE_PUBLIC_CONTAINER=public
+# Optional comma-separated blob-name prefixes searched in the public container.
+AZURE_STORAGE_PUBLIC_SEARCH_PATHS=
+```
+
+Create the `private` and `public` containers in the selected storage account
+before using uploads. Keep both containers private; application authorization
+and short-lived, per-blob upload SAS URLs control access. The SAS grants create
+and write access to one blob and expires after 15 minutes. With managed
+identity, grant the app identity **Storage Blob Data Contributor** and
+**Storage Blob Delegator** permissions; do not enable account-wide anonymous
+blob access.
+
+Configure the storage account's Blob service CORS to allow the exact local and
+production app origins, `PUT`, and the `Content-Type` and `x-ms-blob-type`
+request headers (plus any response headers the browser needs). Every direct
+browser upload sends `x-ms-blob-type: BlockBlob`. CORS does not grant storage
+authorization; keep the upload SAS scoped and short-lived.
+
+Stored database paths remain `/objects/<blob-name>`. Before production cutover,
+determine whether Replit contains production objects that must be copied to
+Azure. The migration must preserve content type and map the old
+`custom:aclPolicy` metadata to Azure's `aclpolicy` metadata key; do not cut over
+until object paths, ACLs, and representative media have been verified.
 
 ## Webhooks and validation
 
@@ -108,8 +178,9 @@ key and base URL above. Use synthetic data for testing.
    provider delivery compatibility needs separate verification.
 
 Successful credential checks are distinct from end-to-end testing and from
-delivery confirmation. Local uploads still depend on the unavailable Replit
-object-storage sidecar, so file-based AI and legacy media flows remain blocked
-until storage is replaced. Legacy media uses `ffprobe` to inspect tracks and
-duration before transcription; `speechToText` sends the audio buffer to OpenAI.
-The separate ffmpeg conversion helper is not called by that transcription path.
+delivery confirmation. Local uploads require the Azure Blob or Azurite setup
+above. Legacy media uses `ffprobe` to inspect tracks and duration before
+transcription; `speechToText` sends the media buffer to OpenAI. The separate
+ffmpeg conversion helper is not called by that transcription path. Both tools
+are included in the Docker image; install them locally to test media without
+Docker, then run `npm run test:media`.

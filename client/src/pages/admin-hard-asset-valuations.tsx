@@ -251,7 +251,7 @@ export default function AdminHardAssetValuations() {
       });
       const { attachment, uploadURL } = await prepared.json() as { attachment: EvidenceAttachment; uploadURL: string };
       try {
-        const uploaded = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        const uploaded = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" } });
         if (!uploaded.ok) throw new Error("The file upload failed");
         const finalized = await apiRequest("POST", `/api/admin/hard-asset-valuations/attachments/${attachment.id}/finalize`, {});
         return finalized.json() as Promise<EvidenceAttachment>;

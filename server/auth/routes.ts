@@ -1,19 +1,23 @@
 import type { Express } from "express";
 import { authStorage, type IAuthStorage } from "./storage";
-import { isAuthenticated } from "./replitAuth";
-import { sessionProfile } from "../../authPolicy";
-import { requiresMfa } from "../../authPolicy";
+import { sessionProfile, requiresMfa } from "../authPolicy";
 
-// Helper to sanitize user data (exclude sensitive fields)
-// Register auth-specific routes
 export function registerAuthRoutes(
   app: Express,
   userStorage: Pick<IAuthStorage, "getUser"> = authStorage,
 ): void {
-  // Get current authenticated user - supports both SSO and email/password auth
+  app.get("/api/auth/providers", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      emailPassword: true,
+      entraId: (process.env.AUTH_ENABLE_ENTRA_ID ?? "false").trim().toLowerCase() === "true",
+    });
+  });
+
+  // Get current authenticated user - supports Entra ID and email/password auth
   app.get("/api/auth/user", async (req: any, res) => {
     try {
-      // Check for SSO authentication first (passport)
+      // Check for Entra ID authentication first (passport)
       if (req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
         if (req.user.pending2FAUserId && !req.user.mfaVerified) {
           return res.status(401).json({ message: "Multi-factor verification required", code: "MFA_REQUIRED" });

@@ -9,12 +9,33 @@ import { db } from "./db";
 import { users } from "@shared/models/auth";
 import { certificates, connectedAccounts, notifications } from "@shared/schema";
 import { intakeAccountSchema, importAccountEmailSchema, type IntakeAccount } from "@shared/accountEmailIntake";
-import { redactAccountEmail, findIntakeDuplicate, registerAccountEmailIntakeRoutes } from "./accountEmailIntake";
+import { redactAccountEmail, findIntakeDuplicate, registerAccountEmailIntakeRoutes, extractPastedAccounts } from "./accountEmailIntake";
 
 const checking: IntakeAccount = {
   accountName: "Synthetic Community Bank", accountType: "Checking", category: "financial",
   accountNumberLast4: "1234", isJoint: false,
 };
+
+test("account extraction uses the direct OpenAI key without a gateway URL", async () => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+  try {
+    process.env.OPENAI_API_KEY = "test-direct-key";
+    let requestUrl = "";
+    globalThis.fetch = async (input) => {
+      requestUrl = String(input);
+      return new Response(JSON.stringify({
+        choices: [{ finish_reason: "stop", message: { content: '{"accounts":[]}' } }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    };
+    assert.deepEqual(await extractPastedAccounts("Synthetic email with no accounts."), []);
+    assert.equal(requestUrl, "https://api.openai.com/v1/chat/completions");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  }
+});
 
 test("sensitive source details are redacted without losing bank names and account last four", () => {
   const source = "Synthetic Community Bank; account number: 987654321; routing: 111000025\nSSN: 123-45-6789\nPassword: not-a-real-password\nFrom: family@example.test";

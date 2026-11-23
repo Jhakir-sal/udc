@@ -7,7 +7,7 @@ import { orsaEmailCampaignContacts, orsaEmailCampaignDeliveries, orsaRosterMembe
 import { claimDelivery } from "./orsaEmailCampaign";
 
 test("database retry claims are atomic, generation-bound, and honor suppression and delivery evidence", {
-  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.NODE_ENV === "production",
+  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined || process.env.NODE_ENV === "production",
 }, async () => {
   const email = `orsa-retry-${crypto.randomUUID()}@example.test`;
   let memberId: string | undefined;

@@ -8,7 +8,7 @@ import { claimDelivery } from "./orsaEmailCampaign";
 import { neverEmailedCandidates } from "./orsaOutreach";
 
 test("never-emailed claims serialize across templates and preserve invitation and opt-out exclusions", {
-  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.NODE_ENV === "production",
+  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined || process.env.NODE_ENV === "production",
 }, async () => {
   const email = `outreach-${crypto.randomUUID()}@example.invalid`;
   let memberId: string | undefined;

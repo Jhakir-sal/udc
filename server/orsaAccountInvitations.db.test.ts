@@ -8,7 +8,7 @@ import { users } from "@shared/models/auth";
 import { claimOrsaInvitation, finishOrsaInvitation } from "./orsaService";
 
 test("database activation claims are atomic and bind retries to the reviewed email and attempt generation", {
-  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.NODE_ENV === "production",
+  skip: process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined || process.env.NODE_ENV === "production",
 }, async () => {
   const id = randomUUID(), actor = randomUUID(), userId = randomUUID();
   const email = `orsa-activation-${id}@example.test`;

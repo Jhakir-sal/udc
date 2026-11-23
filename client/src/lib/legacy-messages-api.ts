@@ -43,6 +43,7 @@ export function uploadLegacyMessageMedia(
     const request = new XMLHttpRequest();
     request.open("PUT", uploadURL);
     request.setRequestHeader("Content-Type", file.type);
+    request.setRequestHeader("x-ms-blob-type", "BlockBlob");
     request.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
     };

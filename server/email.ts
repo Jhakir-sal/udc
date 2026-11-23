@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { HEARTPLAN_PRIVACY, HEARTPLAN_TERMS } from "@shared/heartPlanConsent";
 import { authorizeWarmupReservation, finishWarmupReservation, pauseWarmup, recordOtherEmailTraffic } from "./orsaWarmup";
+import { isProductionDeployment } from "./deploymentEnv";
 
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "hello@stepsafterlife.com";
@@ -10,24 +11,26 @@ const FROM_NAME = "Steps After Life";
 export function isEmailDeliveryConfigured(): boolean {
   return Boolean(SENDGRID_API_KEY);
 }
-function firstDomain(domains: string | undefined): string | undefined {
-  return domains?.split(",").map((d) => d.trim()).find(Boolean);
-}
-
 export function getAppUrl(): string {
-  // In production, REPLIT_DOMAINS lists this deployment's domain(s),
-  // with a custom domain (if configured) first.
-  const deployedDomain = firstDomain(process.env.REPLIT_DOMAINS);
-  if (process.env.REPLIT_DEPLOYMENT === "1" && deployedDomain) {
-    return `https://${deployedDomain}`;
+  const configured = process.env.PUBLIC_APP_URL?.trim();
+  if (!configured) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("PUBLIC_APP_URL must be configured in production.");
+    }
+    return `http://localhost:${process.env.PORT || "5000"}`;
   }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  let url: URL;
+  try {
+    url = new URL(configured);
+  } catch {
+    throw new Error("PUBLIC_APP_URL must be an absolute HTTP(S) origin.");
   }
-  if (deployedDomain) {
-    return `https://${deployedDomain}`;
+  if (!["http:", "https:"].includes(url.protocol) ||
+      (process.env.NODE_ENV === "production" && url.protocol !== "https:") ||
+      url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("PUBLIC_APP_URL must be an HTTP(S) origin without credentials, path, query, or fragment; production requires HTTPS.");
   }
-  return `http://localhost:${process.env.PORT || "5000"}`;
+  return url.origin;
 }
 
 if (SENDGRID_API_KEY) {
@@ -173,7 +176,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     try {
       const outreach = options.orsaOutreach || customArgs?.sal_email_type === "orsa_email_campaign";
       if (outreach) {
-        if (process.env.NODE_ENV !== "production" || process.env.REPLIT_DEPLOYMENT !== "1")
+        if (!isProductionDeployment())
           throw new Error("ORSA delivery requires published production.");
         await authorizeWarmupReservation(options.warmupReservationId);
       } else {

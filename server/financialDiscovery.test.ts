@@ -21,7 +21,7 @@ test("only the explicitly allowlisted emails can receive the demo flag on passwo
   }
 
   const passwordStorage = readFileSync(new URL("./storage.ts", import.meta.url), "utf8");
-  const ssoStorage = readFileSync(new URL("./replit_integrations/auth/storage.ts", import.meta.url), "utf8");
+  const ssoStorage = readFileSync(new URL("./auth/storage.ts", import.meta.url), "utf8");
   for (const source of [passwordStorage, ssoStorage]) {
     assert.match(source, /isDemoAccount:\s*isDemoAccountEmail\(normalizedEmail\)/);
     assert.match(source, /normalizeAccountEmail/);

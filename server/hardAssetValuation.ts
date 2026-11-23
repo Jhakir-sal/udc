@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { createOpenAIClient } from "./openaiClient";
 import { z } from "zod";
 import type { HardAssetComparableSale, HardAssetValuation, HardAssetValuationRequest } from "@shared/schema";
 import type { Express, RequestHandler } from "express";
@@ -129,14 +130,12 @@ export async function analyzeHardAsset(
   input: HardAssetValuationRequest,
   images: ValuationImageEvidence[] = [],
   evidenceFiles: Array<{ fileName: string; contentType: string }> = [],
-  client = new OpenAI({
-    apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-  }),
+  client?: OpenAI,
 ): Promise<NormalizedValuationInsights> {
-  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY || !process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+  if (!client && !process.env.OPENAI_API_KEY?.trim()) {
     throw new Error("AI valuation service is not configured");
   }
+  client ??= createOpenAIClient();
   if (input.photoMode && (!images.length || images.length > 6))
     throw new HardAssetValuationRequestError("Choose 1–6 clear photos of the same item.");
 

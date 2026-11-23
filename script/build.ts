@@ -23,7 +23,6 @@ const allowlist = [
   "nodemailer",
   "openai",
   "passport",
-  "passport-local",
   "pg",
   "stripe",
   "uuid",
@@ -34,12 +33,11 @@ const allowlist = [
 ];
 
 function getProductionSiteUrl() {
-  const configuredValue =
-    process.env.PRODUCTION_SITE_URL || process.env.REPLIT_DOMAINS?.split(",")[0];
+  const configuredValue = process.env.PRODUCTION_SITE_URL;
 
   if (!configuredValue) {
     throw new Error(
-      "Set PRODUCTION_SITE_URL (or publish with a verified REPLIT_DOMAINS domain) before building.",
+      "Set PRODUCTION_SITE_URL before building.",
     );
   }
 

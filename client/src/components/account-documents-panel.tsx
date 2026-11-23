@@ -106,7 +106,7 @@ export function AccountDocumentsPanel({
             name: file.name, size: file.size, contentType: file.type, certificateId: caseId,
           });
           const { uploadURL, objectPath } = await response.json();
-          const put = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+          const put = await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type, "x-ms-blob-type": "BlockBlob" } });
           if (!put.ok) throw new Error("File transfer failed");
           await apiRequest("POST", "/api/family-documents", {
             certificateId: caseId,

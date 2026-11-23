@@ -16,6 +16,10 @@ export function orsaHeartPlanText(landingUrl: string): string {
   return `ORSA + Steps After Life: Help protect your family's future. Start your HeartPlan: ${landingUrl} Reply STOP to opt out.`;
 }
 
+export function isCurrentOrsaHeartPlanText(message: string, landingUrl: string): boolean {
+  return message === orsaHeartPlanText(landingUrl);
+}
+
 async function historicOptOutPhones() {
   const messages = await db.select({ phone: smsMessages.phoneNumber, body: smsMessages.body }).from(smsMessages)
     .where(and(eq(smsMessages.direction, "inbound"), sql`lower(trim(${smsMessages.body})) ~ '^(stop|stopall|unsubscribe|cancel|end|quit)[[:space:]]*[.!]?[[:space:]]*$'`));

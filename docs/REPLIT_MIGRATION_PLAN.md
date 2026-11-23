@@ -33,12 +33,13 @@ For provider setup and local testing precautions before Phase 4, see
 
 | File | What it does | Replit dependency |
 |---|---|---|
-| [server/replit_integrations/auth/replitAuth.ts](../server/replit_integrations/auth/replitAuth.ts) | `setupAuth()`: session + passport init, registers `GET /api/login`, `GET /api/callback`, `GET /api/logout`; also exports `isAuthenticated`, `establishPasswordSession` (used by the already-vendor-neutral password login) | Replit OIDC issuer `https://replit.com/oidc` (default), `REPL_ID`, `ISSUER_URL` |
-| [server/replit_integrations/auth/index.ts](../server/replit_integrations/auth/index.ts) | Re-exports `setupAuth`, `isAuthenticated`, `establishPasswordSession`, `createPasswordLoginHandler`, `authStorage`, `registerAuthRoutes` | folder name only |
-| [server/replit_integrations/auth/passwordLogin.ts](../server/replit_integrations/auth/passwordLogin.ts) | `createPasswordLoginHandler()` — email/password login w/ MFA + rate limiting. **Already vendor-neutral**, just needs to move. | none |
-| [server/replit_integrations/auth/storage.ts](../server/replit_integrations/auth/storage.ts) | Drizzle CRUD for `users` | none beyond folder location |
-| [server/replit_integrations/auth/routes.ts](../server/replit_integrations/auth/routes.ts) | misc `/api/auth/*` routes | none beyond folder location |
-| [server/routes.ts:9](../server/routes.ts) | `import { setupAuth, registerAuthRoutes, isAuthenticated, createPasswordLoginHandler } from "./replit_integrations/auth"` | folder path |
+| [server/auth/session.ts](../server/auth/session.ts) | Session + Passport setup, preserves `GET /api/login`, `GET /api/callback`, `GET /api/logout`, and exports `isAuthenticated`/`establishPasswordSession` | Entra OIDC is opt-in via `AUTH_ENABLE_ENTRA_ID` and `OIDC_*` settings |
+| [server/auth/index.ts](../server/auth/index.ts) | Re-exports session, password login, storage, and auth routes | none |
+| [server/auth/passwordLogin.ts](../server/auth/passwordLogin.ts) | Email/password login with MFA and rate limiting | none |
+| [server/auth/storage.ts](../server/auth/storage.ts) | Drizzle CRUD for `users` | none |
+| [server/auth/routes.ts](../server/auth/routes.ts) | `/api/auth/user` and `/api/auth/providers` | none |
+| [server/auth/strategies/oidc.ts](../server/auth/strategies/oidc.ts) | Tenant-pinned Microsoft Entra OIDC; existing verified accounts only | `OIDC_TENANT_ID`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_CALLBACK_URL` |
+| [server/routes.ts](../server/routes.ts) | Imports the shared auth module | none |
 
 **⚠️ Frontend URL contract — more rigid than NER's.** Unlike NER (which exposes `/api/auth/*`), UDC's frontend is hardwired to three bare paths in multiple components:
 
@@ -64,23 +65,23 @@ This is **less work than NER** — the direct `STRIPE_SECRET_KEY` fallback alrea
 
 | File | What it does | Replit dependency |
 |---|---|---|
-| [server/replit_integrations/object_storage/objectStorage.ts](../server/replit_integrations/object_storage/objectStorage.ts) | `ObjectStorageService` wraps `@google-cloud/storage`, authenticated via **Replit's local sidecar** at `http://127.0.0.1:1106` (`REPLIT_SIDECAR_ENDPOINT`) using Workload Identity Federation (`type: "external_account"`) | The sidecar only exists inside a Replit workspace/deployment — **this cannot run anywhere else, full stop**. Also reads `PRIVATE_OBJECT_DIR`, `PUBLIC_OBJECT_SEARCH_PATHS` |
-| [server/replit_integrations/object_storage/objectAcl.ts](../server/replit_integrations/object_storage/objectAcl.ts) | ACL policy model (`ObjectAclPolicy`, `canAccessObject`, `getObjectAclPolicy`/`setObjectAclPolicy` via GCS custom metadata) | None directly — pure logic, portable |
-| [server/replit_integrations/object_storage/routes.ts](../server/replit_integrations/object_storage/routes.ts) | `registerObjectStorageRoutes()` — **correction, this is load-bearing, not dead code** (an earlier draft of this doc got this wrong). It's called at `routes.ts:1129` and provides the actual `POST /api/uploads/request-url` endpoint (consumed by 8 client pages: document vault, connected-accounts, case-detail, blockchain portal, death-certificate upload, etc.) plus the fallback `GET /objects/*` handler that `routes.ts`'s own inline ACL-authorization middleware (`routes.ts:1039`, explicitly comments "registered BEFORE the generic object storage routes so it takes precedence") calls `next()` into after checking access. **Must be preserved**, only relocated in Phase 9. | none |
+| [server/integrations/object-storage/objectStorage.ts](../server/integrations/object-storage/objectStorage.ts) | `ObjectStorageService` now uses Azure Blob Storage; the original Replit sidecar and GCS dependency were replaced in Phase 6. | Removed in Phase 6 |
+| [server/integrations/object-storage/objectAcl.ts](../server/integrations/object-storage/objectAcl.ts) | ACL policy model using Azure Blob metadata. | Removed in Phase 6 |
+| [server/integrations/object-storage/routes.ts](../server/integrations/object-storage/routes.ts) | `registerObjectStorageRoutes()` provides the upload-URL endpoint and fallback object-serving route after the inline authorization middleware in `routes.ts`. | Preserved and moved in Phase 9 |
 
 **Real consumers** (23 call sites in [server/routes.ts](../server/routes.ts)) use `ObjectStorageService` directly for: death-certificate uploads, family documents, HeartPlan document vault, HeartPlan sealed legacy messages (audio/video), company upload packages. This is load-bearing across most of the app's file-upload surface.
 
-### 1.4 AI Gateway — 11 call sites across 5 files + the audio integration
+### 1.4 AI Gateway — initial inventory (migrated in Phase 7)
 
-All of these read `AI_INTEGRATIONS_OPENAI_API_KEY` / `AI_INTEGRATIONS_OPENAI_BASE_URL` — Replit's AI Gateway proxy — instead of calling OpenAI directly:
+Originally these read `AI_INTEGRATIONS_OPENAI_API_KEY` / `AI_INTEGRATIONS_OPENAI_BASE_URL` instead of calling OpenAI directly:
 
 | File | Line(s) | Feature |
 |---|---|---|
 | [server/routes.ts](../server/routes.ts) | 475, 4245-46, 4690-91, 5890-91, 8600-01, 9302-03 | Death-certificate OCR/verification, NER entity extraction, misc AI endpoints |
 | [server/accountEmailIntake.ts](../server/accountEmailIntake.ts) | 29, 32-33 | Parses inbound company-reply emails |
 | [server/hardAssetValuation.ts](../server/hardAssetValuation.ts) | 133-134, 137 | Appraises hard assets from photos |
-| [server/replit_integrations/audio/client.ts](../server/replit_integrations/audio/client.ts) | 10-11 | Voice chat / TTS / STT (see §2 below — only `speechToText`/`inspectMedia` are actually used) |
-| [server/replit_integrations/chat/routes.ts](../server/replit_integrations/chat/routes.ts), [server/replit_integrations/image/client.ts](../server/replit_integrations/image/client.ts) | — | **Dead scaffolding**, deleted in Phase 2, not migrated |
+| [server/integrations/audio/client.ts](../server/integrations/audio/client.ts) | — | Voice chat / TTS / STT (only `speechToText`/`inspectMedia` are used by the app) |
+| Former Replit chat and image integrations | — | **Dead scaffolding**, deleted in Phase 2, not migrated |
 
 ### 1.5 Env vars used as production/deployment gates in *business logic* — 🔴 the sharpest edge in this migration
 
@@ -95,17 +96,25 @@ This is the one category NER's migration never had to deal with. `REPLIT_DEPLOYM
 | [server/test-fixtures/orsa-warmup-reserve.ts:6](../server/test-fixtures/orsa-warmup-reserve.ts) | same pattern | Test fixture guard, lower risk |
 | [server/email.ts:18-25](../server/email.ts) | `getAppUrl()` | Builds email link URLs from `REPLIT_DOMAINS`/`REPLIT_DEV_DOMAIN` → **every transactional/campaign email link points at `http://localhost:5000` in production** if left unfixed |
 
-**Recommended replacement** (Phase 10): Azure App Service automatically injects `WEBSITE_SLOT_NAME` for deployment slots (e.g. `production`, `staging`) — this is a free, Azure-native equivalent of "is this the actually-published instance." Introduce:
+**Phase 10 replacement:** all campaign gates use a shared, fail-closed check:
 
 ```ts
 // server/deploymentEnv.ts
 export function isProductionDeployment(): boolean {
-  const slot = (process.env.WEBSITE_SLOT_NAME ?? "production").toLowerCase();
-  return process.env.NODE_ENV === "production" && slot === "production";
+  return process.env.NODE_ENV === "production" &&
+    process.env.WEBSITE_SLOT_NAME?.toLowerCase() === "production";
 }
 ```
 
-and swap every `process.env.NODE_ENV === "production" && process.env.REPLIT_DEPLOYMENT === "1"` (and the two bare `REPLIT_DEPLOYMENT` checks) for `isProductionDeployment()`. This preserves the *exact original intent* — "only the live swapped-in slot, not staging" — without inventing a new env var to manage in Key Vault. `getAppUrl()` becomes a straight read of `PUBLIC_APP_URL` (same variable NER uses).
+Unlike the original proposal, an unset slot is **not** treated as production:
+`npm start` and containers outside Azure also run in production mode. Confirm
+the actual value exposed to each App Service slot before enabling campaigns;
+if needed, configure `WEBSITE_SLOT_NAME` explicitly per slot and verify it
+cannot identify staging as production. Slot swaps can apply target settings
+during source warm-up, so pause all campaigns before swapping and verify both
+slots and worker behavior throughout the swap before resuming. Do not rely on
+the slot name as the sole isolation boundary: keep production databases and
+provider credentials inaccessible to staging where possible.
 
 ### 1.6 Vite dev plugins
 
@@ -148,9 +157,9 @@ grep -R "replit_integrations/\(audio\|batch\|chat\|image\)" server client | grep
 
 1. **Auth replacement:** Path 1.A, same as NER — keep the existing email/password + MFA stack (already fully implemented), delete Replit OIDC, scaffold Entra ID OIDC behind `AUTH_ENABLE_ENTRA_ID`, reusing [ner/server/auth/strategies/oidc.ts](https://github.com/Jhakir-sal/ner/blob/main/server/auth/strategies/oidc.ts) as the template. **Difference from NER:** preserve the bare `/api/login`/`/api/logout`/`/api/callback` paths (§1.1) instead of moving to `/api/auth/entra/*`.
 2. **Stripe:** drop the Connectors branch, env-var-only (§1.2) — low effort, same as NER Phase 3.
-3. **Object storage:** Azure Blob Storage, replacing `@google-cloud/storage` + the Replit sidecar. Preserve the existing `ObjectStorageService`/`ObjectAclPolicy` *interface* so all 23 call sites in `routes.ts` don't need to change — only the implementation underneath.
+3. **Object storage:** Azure Blob Storage, replacing `@google-cloud/storage` + the Replit sidecar. Preserve the `/objects/...` path and `ObjectStorageService`/`ObjectAclPolicy` contracts where practical; adapt callers that depended on GCS-specific metadata and download methods.
 4. **ffmpeg/audio hosting:** App Service for Containers (custom Linux image with `ffmpeg` baked in) — see the dedicated explanation below.
-5. **`REPLIT_DEPLOYMENT` business-logic gates:** replace with `WEBSITE_SLOT_NAME`-based `isProductionDeployment()` (§1.5) rather than inventing a new env var.
+5. **`REPLIT_DEPLOYMENT` business-logic gates:** replace with fail-closed `WEBSITE_SLOT_NAME`-based `isProductionDeployment()` (§1.5).
 6. **Drop vs. keep "chat"/"image"/"batch" scaffolding:** drop — zero current usage, and Phase 1.4's real AI features don't need the generic chat/image scaffolding.
 
 ---
@@ -223,56 +232,95 @@ Removed `getConnectorSecretKey()` from [server/stripeClient.ts](../server/stripe
 **Validated:** `server/stripeClient.test.ts` passes without live Stripe credentials. Checkout session creation still requires a valid Stripe test-mode key and a controlled end-to-end test; credentials are not present in the local environment, so that external operation was not exercised. Webhook signature verification remains independent of Connectors ([server/stripeWebhookVerification.ts](../server/stripeWebhookVerification.ts)).
 
 ### Phase 5 — Replace Replit Auth with email/password + Entra ID scaffold ✅ medium
-1. Move session/passport setup out of `replitAuth.ts` into `server/auth/session.ts`, keeping `establishPasswordSession` and `isAuthenticated`.
-2. **Preserve `/api/login`, `/api/logout`, `/api/callback`** (§1.1) — do not rename.
-   - `GET /api/login`: if `AUTH_ENABLE_ENTRA_ID=true`, kick off the Entra OIDC flow; otherwise redirect to `/login` (the password-login page already exists).
-   - `GET /api/logout`: keep the existing dual-path logic (destroy plain session vs. hit the IdP end-session URL for an SSO session) — just swap the Replit OIDC `buildEndSessionUrl`/`client_id` for Entra's equivalent.
-   - `GET /api/callback`: Entra OIDC callback (or delete if SSO isn't launched yet — then `/api/login` just redirects straight to `/login`).
-3. Add `server/auth/strategies/oidc.ts` modeled on [ner's version](https://github.com/Jhakir-sal/ner/blob/main/server/auth/strategies/oidc.ts), gated by `AUTH_ENABLE_ENTRA_ID`.
-4. Delete `replitAuth.ts`.
+Moved shared auth code to `server/auth/`, removed the Replit OIDC implementation, and preserved the `/api/login`, `/api/logout`, and `/api/callback` contracts. Password login, MFA, session renewal, and user profile behavior remain in the shared auth stack. Entra ID is disabled by default; enabling it requires a single-tenant issuer, client credentials, callback URL, and an existing account with a verified email. SSO does not auto-provision users or alter roles. Entra tenant IDs are validated against the token, and logout uses the discovered end-session endpoint with the configured callback origin.
 
-Validate: register → login → `/api/auth/user`-equivalent → logout, with MFA still triggering correctly (`requiresMfa`); session survives refresh.
+The login page displays the SSO option only when `/api/auth/providers` reports Entra enabled. See [LOCAL_INTEGRATIONS.md](./LOCAL_INTEGRATIONS.md) for the Entra settings and test-tenant precautions.
 
-### Phase 6 — Object storage: Replit/GCS sidecar → Azure Blob Storage ⏳ **the biggest single piece of work**
-1. `npm uninstall @google-cloud/storage`, `npm install @azure/storage-blob`.
-2. Rewrite `objectStorage.ts`:
+**Validated:** focused session/MFA tests, Entra issuer validation, auth-route contract tests, build, and the existing password-login/session persistence test pass. No Entra credentials are configured, so live discovery, callback, token refresh, and MFA delivery through Entra were not tested.
+
+### Phase 6 — Object storage: Replit/GCS sidecar → Azure Blob Storage ✅ implementation; production migration still pending
+1. Replaced `@google-cloud/storage` and the Replit sidecar with `@azure/storage-blob` and `@azure/identity`.
+2. Rewrote `objectStorage.ts`:
    - Two containers: `private` (documents, legacy messages, death certs) and `public` (nothing currently needs true public access, but keep the split for parity with the existing `ObjectAclPolicy.visibility` model).
    - `getObjectEntityUploadURL()` → generate a user-delegation or account-key **SAS token** scoped to `write`, short TTL (same 900s as today), instead of a GCS signed URL from the sidecar.
-   - `downloadObject()` → stream from `BlockBlobClient.download()`, preserving the existing HTTP range-request support (used today for audio/video playback — don't regress this, it's exercised by the HeartPlan legacy-message `<audio controls>`/`<video>` players).
-   - `getObjectEntityFile()`/`deleteObjectEntity()`/`writeObjectEntity()` → direct blob equivalents.
-   - Keep `objectAcl.ts` almost as-is (it operates on custom metadata, which Blob Storage also supports via `BlobHTTPHeaders`/metadata) — this is the one file that's already portable.
-3. Env vars: replace `PRIVATE_OBJECT_DIR`/`PUBLIC_OBJECT_SEARCH_PATHS` with `AZURE_STORAGE_CONNECTION_STRING` (or managed-identity + account URL) + container names.
-4. Data migration: existing uploaded files (if any exist in a live Replit object-storage bucket) need a one-time copy job GCS → Azure Blob before cutover — confirm whether there's production data to migrate or if this is launching fresh.
+   - `downloadObject()` → stream from `BlobClient.download()`, preserving HTTP range requests for HeartPlan audio/video playback.
+   - `getObjectEntityFile()`/`deleteObjectEntity()`/`writeObjectEntity()` → direct blob equivalents, with `/objects/<blob-name>` retained as the database path contract.
+   - ACL policies are stored as Azure-safe `aclpolicy` metadata; copying old GCS objects must map `custom:aclPolicy` to this key.
+   - Browser upload clients send `x-ms-blob-type: BlockBlob` with direct PUTs.
+3. Configure `AZURE_STORAGE_CONNECTION_STRING` for local use, or `AZURE_STORAGE_ACCOUNT_URL` with managed identity, plus private/public container names. Keep containers private and configure Blob CORS for local/production origins, `PUT`, and required headers. See [LOCAL_INTEGRATIONS.md](./LOCAL_INTEGRATIONS.md).
+4. Production data migration remains an operational prerequisite: determine whether live Replit objects exist, then copy content and metadata before cutover and verify paths, ACLs, and media.
 
-Validate: death-certificate upload → OCR pipeline still reads the uploaded file; HeartPlan document vault upload/download round-trips; HeartPlan sealed legacy-message audio/video upload → finalize (`inspectMedia`/`speechToText`, Phase 8) still works end-to-end; range requests (`Range: bytes=...`) still return `206 Partial Content`.
+Validated locally: Azure/Azurite URL normalization and byte-range parsing tests, build, and the repository type-check where baseline errors permit. Live Azure upload/download, managed-identity SAS, Blob CORS, OCR, and full media finalization still require configured storage infrastructure and credentials.
 
-### Phase 7 — Replace AI Gateway env vars ✅ low-medium (mechanical, many sites)
-Swap `AI_INTEGRATIONS_OPENAI_API_KEY`/`_BASE_URL` → `OPENAI_API_KEY` (no base URL override — call OpenAI directly) at all 11 sites in §1.4. A single shared `server/openaiClient.ts` exporting one configured client, imported everywhere instead of each file constructing its own `new OpenAI({...})`, would also fix the duplication while we're in there (optional cleanup, not required for de-coupling).
+### Phase 7 — Replace AI Gateway env vars ✅ implementation
+All AI features now create clients through `server/openaiClient.ts` using
+`OPENAI_API_KEY` and the direct OpenAI API endpoint, including OCR, assistant
+chat, account intake, valuation, and transcription. The endpoint is explicit so
+the SDK's `OPENAI_BASE_URL` environment variable cannot redirect sensitive
+requests. Account intake retains its 30-second timeout and no-retry policy.
+Audio initializes its client on use, so missing credentials do not prevent
+application startup; AI requests still fail explicitly when unconfigured.
 
-### Phase 8 — ffmpeg hosting (see detailed explanation below) ⏳
-Decision: custom Docker image for App Service with `ffmpeg`/`ffprobe` installed, Node 22-lts base. Build the existing Dockerfile pattern from scratch (UDC doesn't have one yet) — see Phase 2 of the infra doc (next deliverable) for the exact image spec.
+Configure a direct OpenAI key as described in [LOCAL_INTEGRATIONS.md](./LOCAL_INTEGRATIONS.md).
+The old Replit variables are no longer read. Live model access and transcription
+must be tested separately with a valid key and synthetic data; requests may
+incur charges.
 
-### Phase 9 — Folder rename & import sweep ✅
-```bash
-git mv server/replit_integrations/auth server/auth
-mkdir -p server/integrations
-git mv server/replit_integrations/object_storage server/integrations/object-storage
-git mv server/replit_integrations/audio server/integrations/audio
-rmdir server/replit_integrations
-grep -RIl "replit_integrations" server client shared | \
-  xargs sed -i '' \
-    -e 's#replit_integrations/auth#auth#g' \
-    -e 's#replit_integrations/object_storage#integrations/object-storage#g' \
-    -e 's#replit_integrations/audio#integrations/audio#g'
-grep -RIn -i "replit\|REPL_\|REPLIT_" server client shared   # must return zero lines
+### Phase 8 — ffmpeg hosting (image verified; Azure deployment pending)
+The multi-stage `Dockerfile` uses Node 22 on Debian Bookworm, installs `ffmpeg`
+and `ffprobe`, builds the application, and runs it as the non-root `node` user.
+It runs `npm run test:media` during the image build: synthetic video is inspected
+and converted to WAV using the same functions as the application. The runtime
+image contains production dependencies and the complete `dist` output, including
+the server, client, and required attachments.
+
+Build with the actual public site origin (this is public metadata, not a secret):
+
+```sh
+docker build --build-arg PRODUCTION_SITE_URL=https://your-domain.example -t udc:local .
 ```
 
-### Phase 10 — Fix `REPLIT_DEPLOYMENT` business-logic gates (§1.5) 🔴 do not skip
-1. Add `server/deploymentEnv.ts` (`isProductionDeployment()` per §1.5).
-2. Replace all 6 call sites (`routes.ts` ×2, `orsaBulkSmsWorker.ts`, `orsaEmailCampaign.ts`, `outreachRoutes.ts`, `test-fixtures/orsa-warmup-reserve.ts`).
-3. Replace `getAppUrl()` in [server/email.ts](../server/email.ts) with a direct `process.env.PUBLIC_APP_URL` read (falling back to `http://localhost:5000` in dev only).
+Set `WEBSITES_PORT=5000` in App Service, or set both `PORT` and `WEBSITES_PORT`
+to the same port. Supply database, session, storage, and provider credentials
+as runtime settings, never build arguments or image files. The app writes
+temporary media under the OS temp directory, so the container requires writable
+temporary storage. Test with disposable storage, synthetic media, and a
+non-production database before deploying; startup can seed and modify database
+records. The Docker image built successfully, including both media smoke tests.
+The final non-root image ran ffmpeg and ffprobe, started against a disposable
+PostgreSQL database, and returned 200 for the homepage and auth-provider
+endpoint and 401 for an unauthenticated object request. Azure deployment,
+storage integration, and live provider flows remain unverified.
 
-Validate with a **dedicated test**: stub `WEBSITE_SLOT_NAME=staging` + `NODE_ENV=production` → `isProductionDeployment()` is `false`; `WEBSITE_SLOT_NAME=production` (or unset) + `NODE_ENV=production` → `true`. This is the single highest-risk silent-failure point in the whole migration (campaigns either never send, or send from the wrong slot) — it deserves its own `server/deploymentEnv.test.ts`, not just manual smoke-testing.
+### Phase 9 — Folder rename & import sweep ✅
+Auth moved to `server/auth/` in Phase 5. The remaining object-storage and audio
+integrations now live in `server/integrations/`, and application and test
+imports use the new paths. The old `server/replit_integrations/` directory has
+been removed. Other Replit-specific deployment gates and environment settings
+remain intentionally unchanged until their respective later phases.
+
+### Phase 10 — Deployment gates and public URLs (implemented; Azure verification pending)
+- Campaign SMS, ORSA email and partner outreach use
+  [isProductionDeployment](../server/deploymentEnv.ts). Both production mode
+  and an explicit production slot are required; missing, blank and staging
+  slots fail closed. Existing test fixtures retain their legacy Replit guard and
+  additionally reject any Azure slot, including staging.
+- `PUBLIC_APP_URL` controls transactional links, campaign links, SMS landing
+  links and public unsubscribe links. It must be an absolute origin without
+  credentials, path, query or fragment; production requires HTTPS and rejects
+  a missing value. Development defaults to `http://localhost:<PORT>` (5000 if
+  unset). `PRODUCTION_SITE_URL` remains a separate required build-time value
+  for social metadata; the Replit domain fallback was removed. Configure both
+  deliberately and keep the production domains consistent.
+- Dedicated tests cover slot and URL handling and the real outreach route gate.
+  Before cutover, pause campaigns and verify slot identity, settings and worker
+  behavior with synthetic recipients in both slots and across swaps. Confirm
+  the configured domain's unsubscribe endpoint reaches the intended deployment.
+  Saved bulk SMS runs whose text differs from the current template and landing
+  URL cannot start and are paused automatically if already running. Recreate
+  and review such drafts. Preserve old unsubscribe links for previously sent
+  messages; these links have no specified expiry.
+  Do not resume a pending run until its recipients and content are reviewed.
 
 ### Phase 11 — Cross-app integration cutover
 Point `NER_API_URL` (and confirm `NER_REGISTRATION_PATH`) at NER's live Azure/custom domain once it's deployed; update `SAL_API_URL` similarly if that's a separate live endpoint. Remove the `https://NATIONALESTATEREGISTRY.replit.app` fallback strings in [server/nerSearchRoutes.ts](../server/nerSearchRoutes.ts) and [server/routes.ts](../server/routes.ts) once the env var is always set in every environment (dev included, via `.env`).
@@ -301,7 +349,7 @@ Must return nothing in source files (docs mentioning the migration itself, like 
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| `REPLIT_DEPLOYMENT` gates silently disable ORSA campaign/SMS sending in production | **High if Phase 10 is skipped or rushed** | Dedicated unit test (§Phase 10), explicit manual smoke test of one real campaign send against a staging slot before go-live |
+| Deployment gates disable production campaigns or permit staging sends | **High if Phase 10 is rushed** | Dedicated tests (§Phase 10), verify both slots and swap behavior with synthetic recipients and isolated provider credentials before go-live |
 | Object storage data loss during GCS → Blob cutover | Medium (if there's live data) | Confirm whether any production files already exist; if so, write a one-time copy script and verify checksums before deleting the GCS bucket |
 | ffmpeg missing in whatever hosting approach is chosen | High if the container approach is abandoned for a plain App Service | Keep the Dockerfile in CI (`docker build` in the test job) so a missing ffmpeg install fails CI, not a live legacy-message upload |
 | Frontend hardcodes `/api/login`/`/api/logout` paths in 5 files | Low (just need to remember) | Phase 5 explicitly preserves these paths — see §1.1 |

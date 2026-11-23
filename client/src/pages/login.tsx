@@ -27,6 +27,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
+  const [entraEnabled, setEntraEnabled] = useState(false);
   useEffect(() => {
     if (window.location.pathname !== "/auth/complete") return;
     fetch("/api/auth/mfa-status", { credentials: "include" })
@@ -38,6 +39,19 @@ export default function Login() {
         }
       })
       .catch(() => {});
+  }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/providers")
+      .then((response) => {
+        if (!response.ok) throw new Error(`Provider request failed (${response.status})`);
+        return response.json();
+      })
+      .then((providers) => {
+        if (active) setEntraEnabled(providers.entraId === true);
+      })
+      .catch((error) => console.error("Could not load sign-in providers:", error));
+    return () => { active = false; };
   }, []);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -243,23 +257,27 @@ export default function Login() {
                     Create an account
                   </a>
                 </div>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full min-h-12"
-                  onClick={() => (window.location.href = "/api/login")}
-                  data-testid="button-sso-login"
-                >
-                  Sign in with SSO
-                </Button>
+                {entraEnabled && (
+                  <>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full min-h-12"
+                      onClick={() => (window.location.href = "/api/login")}
+                      data-testid="button-sso-login"
+                    >
+                      Sign in with SSO
+                    </Button>
+                  </>
+                )}
                 <p className="text-center text-xs text-muted-foreground pt-2">
                   Family, HeartPlan, team, and funeral-home accounts all sign in here.
                 </p>

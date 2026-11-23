@@ -10,7 +10,7 @@ import { orsaEmailWarmupSettings as settings, orsaEmailWarmupAttempts as attempt
 import { authorizeWarmupReservation, DEFAULT_WARMUP, getWarmupOverview, pauseWarmup, recordOtherEmailTraffic, reserveWarmup, saveWarmupSettings } from "./orsaWarmup";
 
 const dbOptions = {
-  skip: process.env.ORSA_WARMUP_DB_TEST !== "1" || process.env.REPLIT_DEPLOYMENT === "1" || process.env.NODE_ENV === "production",
+  skip: process.env.ORSA_WARMUP_DB_TEST !== "1" || process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined || process.env.NODE_ENV === "production",
 };
 after(() => pool.end());
 

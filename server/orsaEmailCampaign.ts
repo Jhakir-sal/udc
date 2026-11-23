@@ -19,6 +19,7 @@ import type { CampaignSnapshotRecipient, RetryEvidence } from "./orsaEmailCampai
 import { users } from "@shared/models/auth";
 import { finishWarmupReservation, getWarmupOverview, pauseWarmup, reserveWarmup, warmupConfirmationReason } from "./orsaWarmup";
 import { neverEmailedCandidates } from "./orsaOutreach";
+import { isProductionDeployment } from "./deploymentEnv";
 
 const CAMPAIGN_TEMPLATES = getOrsaHeartPlanEmailSchedule();
 const templateInput = z.object({ templateId: z.string().min(1).max(100) }).strict();
@@ -155,10 +156,6 @@ export function templateSendability(templateId: string, now = new Date()): { sen
     return { sendable: false, reason: `This date-sensitive draft may only be sent on ${template.suggestedSendDate} (Eastern time).` };
   }
   return { sendable: true };
-}
-
-export function isProductionCampaignEnvironment(nodeEnv = process.env.NODE_ENV, deployment = process.env.REPLIT_DEPLOYMENT): boolean {
-  return nodeEnv === "production" && deployment === "1";
 }
 
 export function priorDeliveryDisposition(status: string | null | undefined): "skip" | "claim" {
@@ -591,7 +588,7 @@ export function registerOrsaEmailCampaignRoutes(
     recordEngagement,
     send: sendEmail,
     deliveryConfigured: isEmailDeliveryConfigured,
-    isPublishedProduction: () => isProductionCampaignEnvironment(),
+    isPublishedProduction: isProductionDeployment,
     now: () => new Date(),
     reserveWarmup, finishWarmup: finishWarmupReservation, pauseWarmup,
     warmingReason: warmupConfirmationReason, warmingOverview: getWarmupOverview,

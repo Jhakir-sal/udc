@@ -3,28 +3,6 @@ import assert from "node:assert/strict";
 import { getAppUrl } from "./email";
 import { buildOrsaHeartPlanEmailSequenceDrafts, getOrsaHeartPlanEmailSchedule } from "./orsaEmailSequenceDrafts";
 
-test("local email links use the configured server port without changing Replit domain precedence", () => {
-  const keys = ["PORT", "REPLIT_DOMAINS", "REPLIT_DEV_DOMAIN", "REPLIT_DEPLOYMENT"] as const;
-  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
-  try {
-    delete process.env.REPLIT_DOMAINS;
-    delete process.env.REPLIT_DEV_DOMAIN;
-    delete process.env.REPLIT_DEPLOYMENT;
-    process.env.PORT = "5050";
-    assert.equal(getAppUrl(), "http://localhost:5050");
-    delete process.env.PORT;
-    assert.equal(getAppUrl(), "http://localhost:5000");
-    process.env.PORT = "5050";
-    process.env.REPLIT_DEV_DOMAIN = "example.invalid";
-    assert.equal(getAppUrl(), "https://example.invalid");
-  } finally {
-    for (const key of keys) {
-      if (previous[key] === undefined) delete process.env[key];
-      else process.env[key] = previous[key];
-    }
-  }
-});
-
 test("builds approved ORSA drafts plus a separately tracked link-recovery follow-up", () => {
   const drafts = buildOrsaHeartPlanEmailSequenceDrafts();
   const expectedDates = ["2026-10-02", "2026-09-29", "2026-10-12", "2026-10-22", "2026-11-01", "2026-11-17", "2026-11-24", "2026-11-30"];

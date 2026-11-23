@@ -5,9 +5,9 @@ import {
   canonicalDestination,
   permissionsFor,
   requiresMfa,
-} from "../../authPolicy";
-import { issueMfaChallenge, mfaDeliveryDetails } from "../../mfa";
-import { establishPasswordSession } from "./replitAuth";
+} from "../authPolicy";
+import { issueMfaChallenge, mfaDeliveryDetails } from "../mfa";
+import { establishPasswordSession } from "./session";
 
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 10;

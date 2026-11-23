@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { User } from "@shared/models/auth";
-import { createPasswordLoginHandler } from "./replit_integrations/auth/passwordLogin";
+import { createPasswordLoginHandler } from "./auth/passwordLogin";
 
 for (const channel of ["sms", "email"] as const) {
   test(`password MFA persists the ${channel} delivery method without creating an authenticated session`, async () => {

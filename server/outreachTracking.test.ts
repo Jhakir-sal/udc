@@ -8,7 +8,7 @@ import { outreachContacts as contacts, outreachDeliveries as deliveries, outreac
 import { registerOutreachRoutes } from "./outreachRoutes";
 
 test("B2B tracking classifies all history, searches and pages safely, and protects unsent batches across templates", {
-  skip: process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1",
+  skip: process.env.NODE_ENV === "production" || process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined,
 }, async () => {
   const suffix = crypto.randomUUID();
   const contactIds: string[] = [];

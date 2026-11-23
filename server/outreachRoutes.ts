@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db";
-import { isEmailDeliveryConfigured, sendEmail } from "./email";
+import { getAppUrl, isEmailDeliveryConfigured, sendEmail } from "./email";
+import { isProductionDeployment } from "./deploymentEnv";
 import { outreachContacts, outreachDeliveries, outreachTemplates } from "@shared/schema";
 import { OUTREACH_SENDER, OUTREACH_TEMPLATES, PARTNER_OVERVIEW_FILENAME, outreachTemplateInput, parseOutreachCsvForImport, renderOutreachEmail } from "@shared/outreach";
 import { loadPartnerOverview } from "./partnerOverview";
@@ -12,11 +13,8 @@ import { validateOutreachPdf } from "./outreachAttachment";
 import { OUTREACH_CONTACT_STATUSES } from "@shared/outreachTracking";
 import { getOutreachContactHistory, listTrackedOutreachContacts } from "./outreachTracking";
 
-// The public URL was retrieved from the deployment service. Preview may use
-// development links, but delivery is production-only so opt-outs always work.
-const OUTREACH_PUBLIC_BASE_URL = "https://SALUDC.replit.app";
 export function getOutreachPublishedBaseUrl(): string {
-  return OUTREACH_PUBLIC_BASE_URL;
+  return getAppUrl();
 }
 const sendInput = z.object({
   contactIds: z.array(z.string().uuid()).min(1).max(25),
@@ -36,14 +34,14 @@ const testInput = sendInput.omit({ contactIds: true, attachment: true }).extend(
 });
 
 function publicUnsubscribeUrl(token: string) {
-  return `${OUTREACH_PUBLIC_BASE_URL}/outreach/unsubscribe/${encodeURIComponent(token)}`;
+  return `${getOutreachPublishedBaseUrl()}/outreach/unsubscribe/${encodeURIComponent(token)}`;
 }
 
 async function unsubscribeServiceAvailable() {
   // If this alias was removed or an older deployment is answering there,
   // do not send email whose opt-out action will fail.
   try {
-    const response = await fetch(`${OUTREACH_PUBLIC_BASE_URL}/api/outreach/unsubscribe/invalid`, {
+    const response = await fetch(`${getOutreachPublishedBaseUrl()}/api/outreach/unsubscribe/invalid`, {
       signal: AbortSignal.timeout(5000),
     });
     const body = await response.json();
@@ -82,7 +80,7 @@ export function registerOutreachRoutes(
   const deliver = overrides.send || sendEmail;
   const publicOptOutAvailable = overrides.unsubscribeAvailable || unsubscribeServiceAvailable;
   const deliveryConfigured = overrides.deliveryConfigured || isEmailDeliveryConfigured;
-  const isPublished = overrides.isPublished || (() => process.env.REPLIT_DEPLOYMENT === "1");
+  const isPublished = overrides.isPublished || isProductionDeployment;
   // GET never changes state: mail scanners can follow links without opting out.
   app.get("/api/outreach/unsubscribe/:token", async (req, res) => {
     res.set("Cache-Control", "no-store");

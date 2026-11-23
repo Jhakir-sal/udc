@@ -1,6 +1,6 @@
-import { File } from "@google-cloud/storage";
+import { BlobClient } from "@azure/storage-blob";
 
-const ACL_POLICY_METADATA_KEY = "custom:aclPolicy";
+const ACL_POLICY_METADATA_KEY = "aclpolicy";
 
 // The type of the access group.
 //
@@ -47,7 +47,7 @@ export interface ObjectAclRule {
 
 // The ACL policy of the object.
 // This would be set as part of the object custom metadata:
-// - key: "custom:aclPolicy"
+// - key: "aclpolicy"
 // - value: JSON string of the ObjectAclPolicy object.
 export interface ObjectAclPolicy {
   owner: string;
@@ -104,31 +104,30 @@ function createObjectAccessGroup(
 
 // Sets the ACL policy to the object metadata.
 export async function setObjectAclPolicy(
-  objectFile: File,
+  objectFile: BlobClient,
   aclPolicy: ObjectAclPolicy,
 ): Promise<void> {
-  const [exists] = await objectFile.exists();
-  if (!exists) {
+  if (!(await objectFile.exists())) {
     throw new Error(`Object not found: ${objectFile.name}`);
   }
 
+  const properties = await objectFile.getProperties();
   await objectFile.setMetadata({
-    metadata: {
-      [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy),
-    },
+    ...properties.metadata,
+    [ACL_POLICY_METADATA_KEY]: JSON.stringify(aclPolicy),
   });
 }
 
 // Gets the ACL policy from the object metadata.
 export async function getObjectAclPolicy(
-  objectFile: File,
+  objectFile: BlobClient,
 ): Promise<ObjectAclPolicy | null> {
-  const [metadata] = await objectFile.getMetadata();
-  const aclPolicy = metadata?.metadata?.[ACL_POLICY_METADATA_KEY];
+  const metadata = await objectFile.getProperties();
+  const aclPolicy = metadata.metadata?.[ACL_POLICY_METADATA_KEY];
   if (!aclPolicy) {
     return null;
   }
-  return JSON.parse(aclPolicy as string);
+  return JSON.parse(aclPolicy);
 }
 
 // Checks if the user can access the object.
@@ -138,7 +137,7 @@ export async function canAccessObject({
   requestedPermission,
 }: {
   userId?: string;
-  objectFile: File;
+  objectFile: BlobClient;
   requestedPermission: ObjectPermission;
 }): Promise<boolean> {
   // When this function is called, the acl policy is required.

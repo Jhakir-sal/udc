@@ -25,7 +25,7 @@ test("document metadata accepts valid file sizes and rejects files over 10 MB", 
 test("Vault registration trusts object metadata and enforces quota atomically", () => {
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
   const storage = readFileSync(new URL("./storage.ts", import.meta.url), "utf8");
-  assert.ok(routes.includes("const actualFileSize = Number(objectMetadata.size)"));
+  assert.ok(routes.includes("const actualFileSize = Number(objectMetadata.contentLength)"));
   assert.ok(routes.includes("createPlanDocumentWithinLimit"));
   assert.ok(routes.includes("deleteObjectEntity(parsed.data.objectPath)"));
   assert.ok(storage.includes("FOR UPDATE"));

@@ -3,7 +3,7 @@ import { reserveWarmup } from "../orsaWarmup";
 import { pool } from "../db";
 
 const scope = process.argv[2];
-if (process.env.REPLIT_DEPLOYMENT === "1" || process.env.NODE_ENV === "production" ||
+if (process.env.REPLIT_DEPLOYMENT === "1" || process.env.WEBSITE_SLOT_NAME !== undefined || process.env.NODE_ENV === "production" ||
     process.env.ORSA_WARMUP_DB_TEST !== "1" || !/^test-[a-f0-9-]{24}$/.test(scope || "")) {
   throw new Error("Only explicitly enabled synthetic development scopes are permitted.");
 }

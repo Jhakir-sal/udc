@@ -8,7 +8,6 @@ import {
   deliveryStatusForProviderResult,
   eligibleOrsaCampaignRecipients,
   isCampaignRecipientExcluded,
-  isProductionCampaignEnvironment,
   isSupportedOrsaEmailCampaignTemplate,
   priorDeliveryDisposition,
   registerOrsaEmailCampaignRoutes,
@@ -67,15 +66,12 @@ test("date-locked templates are only sendable on their Eastern suggested date", 
   assert.equal(templateSendability("launch-week", new Date("2026-10-05T16:00:00.000Z")).sendable, true);
 });
 
-test("campaign template validation and production guard are strict", () => {
+test("campaign template validation is strict", () => {
   for (const id of ["launch-week", "getting-started", "trusted-contacts", "thirty-days-left", "planning-for-loved-ones", "one-week-left", "ends-tomorrow"]) {
     assert.equal(isSupportedOrsaEmailCampaignTemplate(id), true);
   }
   assert.equal(isSupportedOrsaEmailCampaignTemplate("invitation"), false);
   assert.equal(isSupportedOrsaEmailCampaignTemplate(""), false);
-  assert.equal(isProductionCampaignEnvironment("production", "1"), true);
-  assert.equal(isProductionCampaignEnvironment("development", "1"), false);
-  assert.equal(isProductionCampaignEnvironment("production", undefined), false);
 });
 
 type MemoryDelivery = { memberId: string; email: string; status: string; id: string; trackingTokenHash?: string | null };
