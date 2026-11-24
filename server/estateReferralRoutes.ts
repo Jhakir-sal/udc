@@ -35,7 +35,7 @@ export function registerEstateReferralRoutes(app: Express, authenticated: Reques
   const handle = (fn: (req: any, res: any) => Promise<any>): RequestHandler => async (req, res) => {
     try { await fn(req, res); }
     catch (error: any) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors.map(e => e.message).join(" ") });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues.map(e => e.message).join(" ") });
       res.status(error.httpStatus || 503).json({ error: error.httpStatus ? error.message : "The referral could not be updated. Refresh and check its history before trying again." });
     }
   };

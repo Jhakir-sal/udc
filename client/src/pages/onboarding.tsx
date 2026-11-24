@@ -327,7 +327,7 @@ export default function Onboarding() {
           {currentStep === "lpoa" && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle role="heading" aria-level={1} className="flex items-center gap-2">
                   <FileSignature className="h-5 w-5 text-primary" />
                   Limited Power of Attorney
                 </CardTitle>

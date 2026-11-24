@@ -116,6 +116,7 @@ export function SectionNavigation({
       <Button
         type="button"
         variant="outline"
+        className="min-h-11"
         onClick={() => {
           trackAnalyticsEvent("heartplan_section_nav", { section: analyticsSection(section), action: "back" });
           navigate(!previous || previous.key === "profile" ? dashboardPath() : previous.path);
@@ -130,6 +131,7 @@ export function SectionNavigation({
         <Button
           type="button"
           variant="ghost"
+          className="min-h-11"
           onClick={onDefer}
           disabled={busy}
           data-testid="button-section-defer"
@@ -139,6 +141,7 @@ export function SectionNavigation({
         {onSave && (
           <Button
             type="button"
+            className="min-h-11"
             onClick={onSave}
             disabled={busy || !canSave}
             data-testid="button-section-save"

@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+test.use({ viewport: { width: 1536, height: 720 } });
+
 type Session = "signed-out" | "planner" | "demo" | "family" | "admin";
 
 async function mockSession(page: Page, session: Session) {
@@ -45,7 +47,7 @@ async function expectPublicShell(page: Page) {
 
 const signedOutEntryPages = [
   ["/register", "Create your account"],
-  ["/family-register", "Invalid Link"],
+  ["/family-register", "Invitation link unavailable"],
   ["/heartplan-register", "Create your HeartPlan"],
   ["/login", "Welcome back"],
   ["/team-login", "Welcome back"],
@@ -91,19 +93,31 @@ async function expectEntryLinks(page: Page) {
   for (const href of ["/login", "/blockchain", "/heartplan-register", "/register", "/team-login", "/demo"]) {
     await expect(nav.last().locator(`a[href="${href}"]`)).toHaveCount(1);
   }
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setViewportSize({ width: 1536, height: 720 });
 }
+
+test("compact navigation remains usable between the xl and 2xl breakpoints", async ({ page }) => {
+  await mockSession(page, "signed-out");
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto("/legal/terms");
+  await page.getByRole("button", { name: "Open navigation menu" }).click();
+  await expect(page.locator("#public-mobile-navigation")).toBeVisible();
+  await expect(page.locator("#public-mobile-navigation").getByRole("link", { name: "Create account" })).toBeVisible();
+});
 
 test("signed-in non-demo accounts keep registration and demo pages inside private routing", async ({ page }) => {
   test.setTimeout(120_000);
   await mockSession(page, "planner");
-  for (const path of ["/register", "/family-register", "/heartplan-register", "/demo", "/demo/family", "/demo/select"]) {
+  for (const path of ["/register", "/heartplan-register", "/demo", "/demo/family", "/demo/select"]) {
     await page.goto(path);
     await expect(page.getByTestId("button-sidebar-toggle")).toBeVisible();
     await expect(page.getByRole("heading", { name: "404 Page Not Found" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: "Public navigation" })).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Footer navigation" })).toHaveCount(0);
   }
+  await page.goto("/family-register");
+  await expectPublicShell(page);
+  await expect(page.getByRole("heading", { name: "Invitation link unavailable" })).toBeVisible();
   await page.goto("/settings");
   await expect(page.getByTestId("button-sidebar-toggle")).toBeVisible();
   await expect(page.locator("#public-page-content")).toHaveCount(0);

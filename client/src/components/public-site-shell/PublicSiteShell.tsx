@@ -93,7 +93,7 @@ function PublicSiteHeader({ signedInNonDemo, dashboardHref }: { signedInNonDemo:
         <nav
           id="public-mobile-navigation"
           aria-label="Public navigation"
-          className="border-t border-border/70 bg-background px-4 py-3 sm:px-6 xl:hidden"
+          className="border-t border-border/70 bg-background px-4 py-3 sm:px-6 2xl:hidden"
         >
           <div className="mx-auto grid max-w-7xl grid-cols-1 gap-2 sm:grid-cols-2">
             {links.map(({ href, label, cta, mobileTestId }) => (

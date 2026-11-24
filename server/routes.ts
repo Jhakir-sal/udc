@@ -3123,7 +3123,7 @@ export async function registerRoutes(
       const data = referralCompanyCreateSchema.parse(req.body);
       res.status(201).json(await storage.createReferralCompany(data));
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       res.status(500).json({ error: "Failed to create referral company" });
     }
   });
@@ -3136,7 +3136,7 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ error: "Referral company not found" });
       res.json(updated);
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       res.status(500).json({ error: "Failed to update referral company" });
     }
   });
@@ -3186,7 +3186,7 @@ export async function registerRoutes(
         confirmationAction: confirmation.reason,
       });
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       console.error("Referral request failed:", error);
       res.status(500).json({ error: "Failed to request referral confirmation" });
     }
@@ -3264,7 +3264,7 @@ export async function registerRoutes(
       if (updated.status === "confirmed") await sendReferralProgress(updated.id);
       res.json({ id: updated!.id, status: updated!.status });
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       res.status(500).json({ error: "Failed to record referral decision" });
     }
   });
@@ -3855,7 +3855,7 @@ export async function registerRoutes(
       });
       res.status(201).json(govNotification);
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       console.error("Admin gov notification create error:", error);
       res.status(500).json({ error: "Failed to create government notification" });
     }
@@ -3881,7 +3881,7 @@ export async function registerRoutes(
       if (!notification) return res.status(404).json({ error: "Not found" });
       res.json(notification);
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       console.error("Admin gov notification update error:", error);
       res.status(500).json({ error: "Failed to update government notification" });
     }
@@ -3940,7 +3940,7 @@ export async function registerRoutes(
       }
       res.json(updated);
     } catch (error) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       console.error("Update case task error:", error);
       res.status(500).json({ error: "Failed to update task" });
     }
@@ -4310,7 +4310,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
 
       res.json({ reply });
     } catch (error: any) {
-      if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
+      if (error instanceof z.ZodError) return res.status(400).json({ error: error.issues });
       console.error("Concierge assistant error:", error);
       res.status(500).json({ error: "The assistant is unavailable right now. Please try again." });
     }
@@ -4541,12 +4541,13 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
       if (phoneTrimmed) {
         const cleanPhone = phoneTrimmed.replace(/\D/g, "");
         if (cleanPhone.length >= 10) {
-          formattedPhone = phoneTrimmed.startsWith("+") ? phoneTrimmed : `+1${cleanPhone}`;
+          const smsPhone = phoneTrimmed.startsWith("+") ? `${phoneTrimmed}` : `+1${cleanPhone}`;
+          formattedPhone = smsPhone;
 
           const smsBody = `SAL Team: Hi ${nameTrimmed}, a case has been opened on behalf of ${certificate.deceasedName}. Please check your email at ${emailTrimmed} for your secure registration link. Once verified, your Certificate ID will be sent securely. Reply STOP to opt out.`;
 
           if (isRingCentralConfigured()) {
-            smsSentOk = await sendSmsViaRingCentral(formattedPhone, smsBody);
+            smsSentOk = await sendSmsViaRingCentral(smsPhone, smsBody);
             if (smsSentOk) {
               smsProvider = "RingCentral";
             } else {
@@ -4559,7 +4560,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
               await twilioClient.messages.create({
                 body: smsBody,
                 from: twilioPhoneNumber,
-                to: formattedPhone,
+                to: smsPhone,
               });
               smsSentOk = true;
               smsProvider = "Twilio";
@@ -4575,7 +4576,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
 
           try {
             await storage.createSmsMessage({
-              phoneNumber: formattedPhone,
+              phoneNumber: smsPhone,
               contactName: nameTrimmed,
               direction: "outbound",
               body: smsBody,
@@ -5553,9 +5554,9 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
         certificate.informantAddress,
         certificate.contactAddress,
       ].filter(Boolean);
-      const searchAddress = addressParts[0] || certificate.countyOfDeath || certificate.stateOfDeath || "";
-      const stateOfDeath = certificate.stateOfDeath || "";
-      const countyOfDeath = certificate.countyOfDeath || "";
+      const searchAddress = addressParts[0] || certificate.placeOfDeathCounty || certificate.placeOfDeathState || "";
+      const stateOfDeath = certificate.placeOfDeathState || "";
+      const countyOfDeath = certificate.placeOfDeathCounty || "";
 
       const stateAbbr = stateOfDeath.length === 2 ? stateOfDeath : stateOfDeath.substring(0, 2).toUpperCase();
       const streets = ["Oak St", "Maple Ave", "Pine Rd", "Elm Dr", "Cedar Ln", "Birch Ct", "Walnut Blvd", "Willow Way"];
@@ -5803,7 +5804,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
       res.json(updated);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Admin update account error:", error);
       res.status(500).json({ error: "Failed to update account" });
@@ -6462,7 +6463,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(certificate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating certificate:", error);
       res.status(500).json({ error: "Failed to create certificate" });
@@ -6488,7 +6489,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(certificate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating certificate:", error);
       res.status(500).json({ error: "Failed to update certificate" });
@@ -6574,7 +6575,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(account);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating account:", error);
       res.status(500).json({ error: "Failed to create account" });
@@ -6628,7 +6629,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(updated ? familyAccountView(updated) : null);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating account:", error);
       res.status(500).json({ error: "Failed to update account" });
@@ -6789,7 +6790,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error processing transfer:", error);
       res.status(500).json({ error: "Failed to process transfer" });
@@ -6949,7 +6950,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(notification);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating notification:", error);
       res.status(500).json({ error: "Failed to update notification" });
@@ -7267,18 +7268,20 @@ Return ONLY the JSON object, no markdown, no explanation.`
         (typeof req.body.expectedRecipient !== "string" || req.body.expectedRecipient !== row.notice.destinationEmail)) {
       return res.status(409).json({ error: "The recipient changed after your review. Review the current recipient and confirm again." });
     }
-    if (!hasVerifiedCompanyRouting(row.company) || row.notice.destinationEmail !== row.company.notificationEmail) {
+    const destinationEmail = row.notice.destinationEmail;
+    const notificationEmail = row.company.notificationEmail;
+    if (!destinationEmail || !notificationEmail || !hasVerifiedCompanyRouting(row.company) || destinationEmail !== notificationEmail) {
       return res.status(409).json({ error: "Company notification routing must be verified and current." });
     }
     if (!isEmailDeliveryConfigured()) return res.status(503).json({ error: "Email delivery is not configured." });
     const [claimed] = await db.update(companyDeathNotices).set({ status: "sending", updatedAt: new Date() }).where(and(
       eq(companyDeathNotices.id, row.notice.id), eq(companyDeathNotices.status, "draft"),
-      eq(companyDeathNotices.destinationEmail, row.notice.destinationEmail),
+      eq(companyDeathNotices.destinationEmail, destinationEmail),
     )).returning();
     if (!claimed) return res.status(409).json({ error: "Notice is already being sent." });
     let sent = false;
     try {
-      sent = await sendEmail(buildCompanyDeathNoticeEmail({ companyName: row.company.name, notificationEmail: row.company.notificationEmail, secureRecordId: row.notice.secureRecordId, portalUrl: `${getAppUrl()}/company-portal` }));
+      sent = await sendEmail(buildCompanyDeathNoticeEmail({ companyName: row.company.name, notificationEmail, secureRecordId: row.notice.secureRecordId, portalUrl: `${getAppUrl()}/company-portal` }));
     } catch (error) {
       console.error("Company death notice email failed", { name: (error as any)?.name || "Error" });
     }
@@ -7642,7 +7645,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error pushing webhook:", error);
       res.status(500).json({ error: "Failed to push webhook notification" });
@@ -7850,7 +7853,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error processing callback:", error);
       res.status(500).json({ error: "Failed to process callback" });
@@ -7918,7 +7921,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(provider);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating service provider:", error);
       res.status(500).json({ error: "Failed to create service provider" });
@@ -8013,7 +8016,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(beneficiary);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating beneficiary:", error);
       res.status(500).json({ error: "Failed to create beneficiary" });
@@ -8053,7 +8056,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(beneficiary);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating beneficiary:", error);
       res.status(500).json({ error: "Failed to update beneficiary" });
@@ -8165,7 +8168,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(appointment);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating appointment:", error);
       res.status(500).json({ error: "Failed to create appointment" });
@@ -8204,7 +8207,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(appointment);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating appointment:", error);
       res.status(500).json({ error: "Failed to update appointment" });
@@ -8301,7 +8304,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating government notification:", error);
       res.status(500).json({ error: "Failed to send government notification" });
@@ -8395,7 +8398,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(notification);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating government notification:", error);
       res.status(500).json({ error: "Failed to update government notification" });
@@ -8477,7 +8480,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.status(201).json(estate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error creating estate registry:", error);
       res.status(500).json({ error: "Failed to create estate registry" });
@@ -8507,7 +8510,7 @@ Return ONLY the JSON object, no markdown, no explanation.`
       res.json(estate);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
+        return res.status(400).json({ error: error.issues });
       }
       console.error("Error updating estate registry:", error);
       res.status(500).json({ error: "Failed to update estate registry" });
@@ -8717,20 +8720,6 @@ Return ONLY valid JSON.`;
   // --------------------------------------------
 
   registerNerSearchRoutes(app, isAuthenticated);
-
-  app.get("/api/ner-external/info", async (_req, res) => {
-    const nerApiUrl = process.env.NER_API_URL || "https://NATIONALESTATEREGISTRY.replit.app";
-    res.json({
-      name: "National Estate Registry",
-      url: nerApiUrl,
-      guestSearchUrl: `${nerApiUrl}/guest-search`,
-      description: "Search the National Estate Registry to find information about a family member's estate plan. Helps avoid probate delays and locate critical documents.",
-      pricing: {
-        searchFee: "$3.50",
-        foundFee: "$7.00 additional if estate found",
-      },
-    });
-  });
 
   // Credit Protection Requests
   app.get("/api/credit-protection", isAuthenticated, async (req: any, res) => {
@@ -10681,7 +10670,7 @@ Return ONLY valid JSON:
   const requireDemoDiscovery: RequestHandler = async (req: any, res, next) => {
     const userId = req.session?.userId || req.user?.claims?.sub;
     const user = userId ? await storage.getUser(userId) : undefined;
-    if (!canAccessFinancialDiscovery(user)) {
+    if (!user || !canAccessFinancialDiscovery(user)) {
       return res.status(403).json({ error: "Discovery demo access is not enabled" });
     }
     const plan = await getOrCreatePlanForUser(user.id);

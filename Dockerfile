@@ -1,15 +1,16 @@
-FROM node:22-bookworm-slim AS base
+FROM cgr.dev/chainguard/wolfi-base:latest AS base
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache \
+    && apk add --no-cache nodejs-24 ffmpeg-9.1 libstdc++ 'libxml2-16>=2.15.4-r4'
 
 WORKDIR /app
 
 FROM base AS build
 
+RUN apk add --no-cache npm-12
+
 COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+RUN npm ci --include=dev --strict-allow-scripts
 
 COPY tsconfig.json vite.config.ts postcss.config.js tailwind.config.ts ./
 COPY client ./client
@@ -33,6 +34,6 @@ COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 
-USER node
+USER nonroot
 EXPOSE 5000
 CMD ["node", "dist/index.cjs"]

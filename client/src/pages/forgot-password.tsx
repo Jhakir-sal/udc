@@ -123,7 +123,7 @@ export default function ForgotPassword() {
           <CardHeader className="space-y-2 p-6 sm:p-8 sm:pb-5">
             {step === "email" && (
               <>
-                <CardTitle className="font-serif text-2xl flex items-center gap-2">
+                <CardTitle role="heading" aria-level={1} className="font-serif text-2xl flex items-center gap-2">
                   <Mail className="h-6 w-6" />
                   Reset Password
                 </CardTitle>

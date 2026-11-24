@@ -18,7 +18,7 @@ export default function Landing() {
                 We help families handle important accounts, notices, and documents after someone dies. You can also make a HeartPlan now, so the people you love have clear guidance later.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
-                <Button size="lg" className="w-full sm:w-auto" asChild data-testid="button-sign-in-hero">
+                <Button size="lg" className="min-h-11 w-full sm:w-auto" asChild data-testid="button-sign-in-hero">
                    <a href="/register" onClick={() => trackAnalyticsEvent("landing_cta_click", { cta: "register", placement: "hero" })}>Create a family account</a>
                 </Button>
                 <Button size="lg" variant="ghost" className="w-full sm:w-auto" asChild data-testid="button-demo-hero">

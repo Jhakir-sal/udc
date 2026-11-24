@@ -16,7 +16,9 @@ export function warmupUsage(entries: UsageEntry[], now: Date): WarmupUsage {
   const usage = { hourly: 0, daily: 0, otherHourly: 0, otherDaily: 0 };
   for (const entry of entries) {
     const age = now.getTime() - entry.createdAt.getTime();
-    if (age < 0 || age >= 86_400_000) continue;
+    // Future timestamps can reflect clock skew or concurrent inserts; count
+    // them until their full window expires rather than undercounting traffic.
+    if (age >= 86_400_000) continue;
     const other = entry.kind === "other";
     if (other) usage.otherDaily++; else usage.daily++;
     if (age < 3_600_000) {
@@ -43,7 +45,7 @@ export function evaluateWarmup(config: Pick<WarmupSettings,
   if (usage.hourly >= config.hourlyLimit || usage.hourly + usage.otherHourly >= config.providerHourlyLimit) {
     const hourlyEntries = entries.filter(entry => {
       const age = now.getTime() - entry.createdAt.getTime();
-      return age >= 0 && age < 3_600_000;
+      return age < 3_600_000;
     }).filter(entry => usage.hourly >= config.hourlyLimit ? entry.kind === "outreach" : true);
     const oldest = Math.min(...hourlyEntries.map(entry => entry.createdAt.getTime()));
     return { allowed: false, paused: false, waitingForReview: false,

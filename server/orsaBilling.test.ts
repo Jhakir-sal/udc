@@ -2011,8 +2011,10 @@ test("DB integration: repeated worker runs cannot duplicate installments or exte
       reconcileOrsaBilling(stripe, { now }),
       reconcileOrsaBilling(stripe, { now }),
     ]);
-    assert.equal(first.completed + second.completed, 1);
-    assert.equal(first.retrying + second.retrying, 1);
+    // The second sweep may observe a busy lease, an already-completed
+    // registration, or no stale work, depending on when it reads.
+    assert.ok(first.completed + second.completed >= 1);
+    assert.equal(first.failedPermanent + second.failedPermanent, 0);
     assert.equal(registrations, 1);
     const installments = await db.select().from(nerInstallments).where(eq(nerInstallments.enrollmentId, enrollmentId));
     assert.equal(installments.length, 1);

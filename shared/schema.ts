@@ -81,7 +81,8 @@ export const webhookStatusEnum = pgEnum("webhook_status", [
   "pending",
   "sent",
   "delivered",
-  "failed"
+  "failed",
+  "failed_permanent"
 ]);
 
 export const certificates = pgTable("certificates", {
@@ -1058,7 +1059,7 @@ export const salNotifications = pgTable("sal_notifications", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertSalNotificationSchema = createInsertSchema(salNotifications).omit({ id: true, createdAt: true });
+export const insertSalNotificationSchema = createInsertSchema(salNotifications).omit({ createdAt: true });
 export type SalNotification = typeof salNotifications.$inferSelect;
 export type InsertSalNotification = z.infer<typeof insertSalNotificationSchema>;
 
@@ -1076,7 +1077,7 @@ export const smsMessages = pgTable("sms_messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({ id: true, createdAt: true });
+export const insertSmsMessageSchema = createInsertSchema(smsMessages).omit({ createdAt: true });
 export type SmsMessage = typeof smsMessages.$inferSelect;
 export type InsertSmsMessage = z.infer<typeof insertSmsMessageSchema>;
 
@@ -1118,7 +1119,7 @@ export const caseTasks = pgTable("case_tasks", {
   uniqueIndex("case_tasks_certificate_task_unique").on(table.certificateId, table.taskKey),
 ]);
 
-export const insertCaseTaskSchema = createInsertSchema(caseTasks).omit({ id: true, createdAt: true });
+export const insertCaseTaskSchema = createInsertSchema(caseTasks).omit({ createdAt: true });
 export type CaseTask = typeof caseTasks.$inferSelect;
 
 // Documents uploaded by family members (e.g., driver's license, additional ID)
@@ -2378,7 +2379,7 @@ export const planMessageUploadSchema = z.object({
   contentType: z.string().trim(),
   fileSize: z.number().int().positive(),
   durationSeconds: z.number().int().positive().max(PLAN_MESSAGE_MAX_DURATION_SECONDS),
-  recordingConsent: z.literal(true, { errorMap: () => ({ message: "Recording consent is required" }) }),
+  recordingConsent: z.literal(true, { error: "Recording consent is required" }),
 }).superRefine((value, ctx) => {
   const allowed = PLAN_MESSAGE_MIME_TYPES[value.messageType] as readonly string[];
   if (!allowed.includes(value.contentType.toLowerCase())) {

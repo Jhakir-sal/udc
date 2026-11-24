@@ -118,7 +118,7 @@ for (const { enabled, paused } of [
   });
 }
 
-test("save requires both fresh reviews, rejects four seconds, serializes numbers, and never sends email", async ({ page, baseURL }) => {
+test("save requires both fresh reviews, rejects intervals below four seconds, serializes numbers, and never sends email", async ({ page, baseURL }) => {
   const traffic = await syntheticWarmup(page, baseURL!, true, false);
   await page.goto("/admin/orsa");
   await openEmailSettings(page);
@@ -131,7 +131,7 @@ test("save requires both fresh reviews, rejects four seconds, serializes numbers
   await expect(save(page)).toBeDisabled();
   await providerAck(page).check();
   await expect(save(page)).toBeEnabled();
-  await page.getByTestId("input-orsa-warmup-minIntervalSeconds").fill("4");
+  await page.getByTestId("input-orsa-warmup-minIntervalSeconds").fill("3");
   await expect(save(page)).toBeDisabled();
   expect(traffic.writes).toEqual([]);
   // Fill every numeric input rather than testing only numeric preset constants.

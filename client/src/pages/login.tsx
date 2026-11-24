@@ -172,7 +172,7 @@ export default function Login() {
       <main className="flex-1 flex items-center justify-center p-4 py-8 sm:p-8">
         <Card className="family-card w-full max-w-md">
           <CardHeader className="space-y-2 p-6 sm:p-8 sm:pb-5">
-            <CardTitle className="font-serif text-2xl">
+            <CardTitle role="heading" aria-level={1} className="font-serif text-2xl">
               {step === "credentials" ? "Welcome back" : "Two-Factor Authentication"}
             </CardTitle>
             <CardDescription>

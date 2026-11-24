@@ -1,6 +1,12 @@
 # Replit De-coupling & Azure Migration Plan (udc)
 
-> Objective: remove all Replit-specific code, dependencies, env vars, and folder names from the `udc` codebase, while preserving every user-facing feature (auth, Stripe, SendGrid email, RingCentral/Twilio SMS, object storage, OCR/NER/voice AI, ORSA outreach), then deploy to Azure. Modeled on the sibling [ner](https://github.com/Jhakir-sal/ner) migration ([ner/docs/REPLIT_MIGRATION_PLAN.md](https://github.com/Jhakir-sal/ner/blob/main/docs/REPLIT_MIGRATION_PLAN.md)), adapted for UDC's larger surface area and the extra integrations it has that NER didn't (object storage, ffmpeg, SendGrid, RingCentral, a cross-app dependency on NER itself).
+> Objective: remove Replit-specific coupling and deploy UDC to its **own** Azure infrastructure. The sibling [ner](https://github.com/Jhakir-sal/ner) migration is a reference for approach only, not a source of infrastructure, configuration, credentials or deployment dependencies. Preserve UDC's existing features where feasible; its inherited external registry feature is separately optional and must not be enabled without an approved integration.
+
+UDC needs its own resource group, App Service and deployment slots, container
+registry, PostgreSQL, Blob Storage, Key Vault, managed identity, application
+insights/logging, domain and application settings. Third-party providers also
+require UDC's own approved accounts or credentials. No NER resource is a
+prerequisite for provisioning or deploying UDC.
 
 Status legend: ✅ done · ⏳ planned (this doc) · ⚠️ requires a product/ops decision · 🔴 blocker
 
@@ -15,7 +21,7 @@ For provider setup and local testing precautions before Phase 4, see
   - Removed ~45 unused Replit-agent session artifacts from `attached_assets/` (screenshots, pasted text dumps, duplicate logos, and a CSV containing real member PII — `SALCustomers312_...csv`) that were never referenced by app code or the build. Verified by cross-referencing every file against `client/server/shared/script/docs/tests` across **all** file types, not just `.ts`/`.tsx` — this caught one CSS `url()` reference (`end-of-life-concierge-hands.jpg` in [concierge.css](../client/src/pages/concierge.css)) that a naive TS-only grep would have missed and broken. Archived (not permanently deleted) to `~/Developer/udc-archived-assets/` outside the repo for manual review/deletion.
   - Archived non-source business collateral (`marketing/`, `deliverables/`, `screenshots/`, `vendor_estimate_package/`, unused `previews/*`) outside the repo — these were never application source.
   - Removed unused Replit Python scaffolding (`main.py`, `pyproject.toml`, `uv.lock` — the default `uv init` template, zero references anywhere in `server`/`client`/`shared`/`script`).
-  - Fixed a **critical security issue** in [server/seed.ts](../server/seed.ts): `ensureAdminUsers()` seeded a hardcoded admin password on every boot via raw-SQL string interpolation. Replaced with parameterized `sql` tagged-template queries and an opt-in `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` env-var gate — no password is hardcoded in source anymore.
+  - Fixed a **critical security issue** in [server/seed.ts](../server/seed.ts): an earlier change removed the hardcoded admin password and parameterized the queries. Subsequently, automatic admin creation and promotion were removed entirely; see the explicit first-user bootstrap and existing-role audit in [PRODUCTION_INFRA.md](./PRODUCTION_INFRA.md).
   - Regenerated `package-lock.json` — the committed lockfile resolved **210 packages** through `http://package-firewall.replit.internal`, Replit's internal npm proxy, which made `npm install` fail outside Replit entirely (`ENOTFOUND package-firewall.replit.internal`). This wasn't on the original coupling inventory and would have blocked Phase 1 for anyone who didn't already have it cached.
 - **Phase 1 — Git & baseline:** `git init`, `.gitignore`, `npm install`, baseline captured:
   - `npm run check` (tsc): pre-existing errors cataloged in §1 below — **not** fixed yet (out of scope for a Replit-decoupling pass except where the error is *in* code getting deleted/moved).
@@ -124,9 +130,9 @@ Same three packages as NER: `@replit/vite-plugin-runtime-error-modal` (always on
 
 | Path | Imported by app? | Action |
 |---|---|---|
-| [server/replit_integrations/batch/](../server/replit_integrations/batch/) | No (docstring reference only) | Deleted |
-| [server/replit_integrations/chat/](../server/replit_integrations/chat/) | No | Deleted |
-| [server/replit_integrations/image/](../server/replit_integrations/image/) | No | Deleted |
+| `server/replit_integrations/batch/` | No (docstring reference only) | Deleted |
+| `server/replit_integrations/chat/` | No | Deleted |
+| `server/replit_integrations/image/` | No | Deleted |
 | `server/replit_integrations/audio/routes.ts`, `server/replit_integrations/audio/index.ts` | No — only `./replit_integrations/audio/client` is ever imported ([server/routes.ts:33](../server/routes.ts)) | Deleted; `client.ts` kept |
 | ~~`server/replit_integrations/object_storage/routes.ts`~~ | **Correction: actually called** at `routes.ts:1129` (`registerObjectStorageRoutes(app)`) | **Not deleted** — see §1.3 |
 
@@ -135,21 +141,20 @@ Verification command (confirmed zero hits after the Phase 2 deletion):
 grep -R "replit_integrations/\(audio\|batch\|chat\|image\)" server client | grep -v "^server/replit_integrations/"
 ```
 
-### 1.8 Cross-app coupling — talks to NER's Replit deployment today
+### 1.8 Inherited external integrations — optional, not infrastructure
 
 | File | Default | Needs to become |
 |---|---|---|
-| [server/nerAdapter.ts](../server/nerAdapter.ts) | throws if `NER_API_URL` unset (no hardcoded fallback) | NER's Azure production URL |
-| [server/nerSearchRoutes.ts:100](../server/nerSearchRoutes.ts) | `process.env.NER_API_URL \|\| "https://NATIONALESTATEREGISTRY.replit.app"` | same |
-| [server/routes.ts:8734](../server/routes.ts) | same fallback | same |
-| [server/routes.ts:5628](../server/routes.ts) | `process.env.SAL_API_URL` (no fallback) | n/a — only needs the prod value set |
+| [server/nerAdapter.ts](../server/nerAdapter.ts) | Registration requires explicit `NER_API_URL` and `NER_REGISTRATION_PATH`. | Leave unconfigured unless separately approved and verified. |
+| [server/nerSearchRoutes.ts](../server/nerSearchRoutes.ts) | External registry search/info require an explicit valid `NER_API_URL`; no Replit fallback. | Unconfigured search is unavailable and makes no external request. |
+| [server/routes.ts](../server/routes.ts) | Case-deletion notification uses optional `SAL_API_URL` and `UDC_WEBHOOK_KEY`. | Leave unconfigured until a separate receiver is approved. |
 
 ### 1.9 Docs & branding
 
 | File | Action |
 |---|---|
-| [replit.md](../replit.md) | Rename to `README.md`; rewrite auth/storage/env sections |
-| `.env.example` | Create (doesn't exist yet) — no `REPL_*`, adds all vars from §1.4 of the infra doc |
+| [README.md](../README.md) | Renamed from `replit.md`; auth, storage and local setup updated |
+| [.env.example](../.env.example) | Safe template for current runtime configuration |
 
 ---
 
@@ -161,6 +166,7 @@ grep -R "replit_integrations/\(audio\|batch\|chat\|image\)" server client | grep
 4. **ffmpeg/audio hosting:** App Service for Containers (custom Linux image with `ffmpeg` baked in) — see the dedicated explanation below.
 5. **`REPLIT_DEPLOYMENT` business-logic gates:** replace with fail-closed `WEBSITE_SLOT_NAME`-based `isProductionDeployment()` (§1.5).
 6. **Drop vs. keep "chat"/"image"/"batch" scaffolding:** drop — zero current usage, and Phase 1.4's real AI features don't need the generic chat/image scaffolding.
+7. **Infrastructure isolation:** provision all UDC Azure resources independently. NER is an example, not a dependency of the migration or deployment.
 
 ---
 
@@ -267,8 +273,8 @@ must be tested separately with a valid key and synthetic data; requests may
 incur charges.
 
 ### Phase 8 — ffmpeg hosting (image verified; Azure deployment pending)
-The multi-stage `Dockerfile` uses Node 22 on Debian Bookworm, installs `ffmpeg`
-and `ffprobe`, builds the application, and runs it as the non-root `node` user.
+The multi-stage `Dockerfile` uses packaged Node 24 on Wolfi, installs `ffmpeg`
+and `ffprobe`, builds the application, and runs it as the non-root `nonroot` user.
 It runs `npm run test:media` during the image build: synthetic video is inspected
 and converted to WAV using the same functions as the application. The runtime
 image contains production dependencies and the complete `dist` output, including
@@ -286,7 +292,8 @@ as runtime settings, never build arguments or image files. The app writes
 temporary media under the OS temp directory, so the container requires writable
 temporary storage. Test with disposable storage, synthetic media, and a
 non-production database before deploying; startup can seed and modify database
-records. The Docker image built successfully, including both media smoke tests.
+records. The Docker image built successfully, including media tests for the
+supported recording formats.
 The final non-root image ran ffmpeg and ffprobe, started against a disposable
 PostgreSQL database, and returned 200 for the homepage and auth-provider
 endpoint and 401 for an unauthenticated object request. Azure deployment,
@@ -322,19 +329,63 @@ remain intentionally unchanged until their respective later phases.
   messages; these links have no specified expiry.
   Do not resume a pending run until its recipients and content are reviewed.
 
-### Phase 11 — Cross-app integration cutover
-Point `NER_API_URL` (and confirm `NER_REGISTRATION_PATH`) at NER's live Azure/custom domain once it's deployed; update `SAL_API_URL` similarly if that's a separate live endpoint. Remove the `https://NATIONALESTATEREGISTRY.replit.app` fallback strings in [server/nerSearchRoutes.ts](../server/nerSearchRoutes.ts) and [server/routes.ts](../server/routes.ts) once the env var is always set in every environment (dev included, via `.env`).
+### Phase 11 — Isolate inherited cross-app integrations
 
-### Phase 12 — Env, docs, branding
-1. Write `.env.example` covering every var in §1 plus the non-Replit ones already in use: `DATABASE_URL`, `SESSION_SECRET`, `PUBLIC_APP_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `OPENAI_API_KEY`, `SENDGRID_API_KEY`, `SENDGRID_WEBHOOK_PUBLIC_KEY`, `FROM_EMAIL`, `RINGCENTRAL_CLIENT_ID`, `RINGCENTRAL_CLIENT_SECRET`, `RINGCENTRAL_JWT_TOKEN`, `RINGCENTRAL_PHONE_NUMBER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `TWILIO_PHONE_NUMBER`, `UDC_WEBHOOK_KEY`, `NER_API_URL`, `NER_REGISTRATION_PATH`, `SAL_API_URL`, `AZURE_STORAGE_CONNECTION_STRING` (Phase 6), `ADMIN_SEED_EMAIL`/`ADMIN_SEED_PASSWORD` (Phase 0, optional/dev-only), `AUTH_ENABLE_ENTRA_ID`/`OIDC_*` (Phase 5).
-2. Rename `replit.md` → `README.md`; rewrite the auth/storage/deployment sections; drop the external-dependency line for "Replit Auth" and "Object Storage" (Replit's).
-3. Write `docs/PRODUCTION_INFRA.md` (Azure topology, secret inventory, CI/CD) — next deliverable, mirroring [ner/docs/PRODUCTION_INFRA.md](https://github.com/Jhakir-sal/ner/blob/main/docs/PRODUCTION_INFRA.md) with the Blob Storage + container deltas already captured in this doc.
+The Replit registry search and info fallbacks are removed. Without an explicit
+valid `NER_API_URL`, both endpoints return 503 without making an external call,
+and the search UI explains that the feature is unavailable. Existing search
+history and saved documents remain accessible. Search and registration are
+preserved only as separately approved integrations, not as UDC infrastructure
+requirements. `NER_API_URL` requires HTTPS in production; an approved
+integration must verify authentication, contracts, consent and data handling.
 
-### Phase 13 — CI/CD
-GitHub Actions `test` job needs more than NER's did:
-- A Postgres **service container** (`postgres:16`), since 11+ of the 89 `node:test` files throw at import without `DATABASE_URL` (§0), plus the explicitly DB-gated suite (`ORSA_WARMUP_DB_TEST=1 tsx --test server/orsaWarmup.db.test.ts`, `orsaAccountInvitations.db.test.ts`, `orsaEmailCampaignRetry.db.test.ts`, `orsaOutreach.db.test.ts`).
-- Decide full vs. subset test matrix for PR CI (89 server test files + 12 Playwright specs + the separate `tests/assistant` Playwright suite is a lot to run on every push) — recommend: full `npm test` (node:test, fast, ~5s once DB is up per the baseline) + Playwright smoke subset on PR, full Playwright suite nightly or pre-deploy only.
-- `deploy` job: same slot-swap shape as NER, but packaging a **container image** (Phase 8) instead of a plain `dist/` folder — push to Azure Container Registry, `az webapp config container set` instead of `azure/webapps-deploy@v3`.
+The registration adapter also requires `NER_REGISTRATION_PATH`. Missing or
+incompatible configuration fails registration and may exhaust existing retries;
+review the paid-enrollment workflow before enabling it. `SAL_API_URL` is
+optional and its receiver remains unidentified. Case deletion precedes its
+best-effort notification; the sender currently does not check HTTP status or
+retry failures. Do not configure either integration by assumption.
+
+Synthetic tests cover disabled search, configured URLs and registration
+idempotency. Actual external contracts, production workflows and Azure
+deployment remain unverified, but they do not block provisioning UDC's own
+infrastructure.
+
+### Phase 12 — Env, docs, branding ✅ documentation; infrastructure pending
+
+- Added [.env.example](../.env.example) with safe local defaults and blank
+  credentials; the existing `.env` is not replaced.
+- Renamed `replit.md` to [README.md](../README.md) and updated local setup,
+  authentication, storage and deployment guidance.
+- Documented the proposed UDC-owned topology, secret inventory, deployment and
+  cutover risks in [PRODUCTION_INFRA.md](./PRODUCTION_INFRA.md). This is not a
+  deployment record; provisioning, data migration and live verification remain
+  pending.
+
+### Phase 13 — CI/CD: workflows added; deployment remains blocked
+
+- [CI](../.github/workflows/ci.yml) runs `npm test`, ORSA warmup tests, four ORSA
+  database suites and the webhook enum migration test against disposable PostgreSQL
+  16, an independent TypeScript check,
+  mocked public-route Playwright smoke tests, a production-dependency npm
+  audit, and a Docker build containing media tests and a high/critical
+  vulnerability scan. The complete Playwright
+  suite can be selected manually.
+- [Staging deployment](../.github/workflows/deploy-staging.yml) is manual,
+  main-only, and reruns CI with the complete Playwright suite before an
+  explicitly enabled, protected UDC staging environment can build and publish
+  an image and update the literal `staging` slot by digest. It does not swap
+  slots, deploy production, provision resources, or run database migrations.
+- Local TypeScript, application tests, all 50 browser tests, and the final
+  Docker build including media tests pass. Warmup accounting counts future-dated
+  traffic conservatively, with unit and database regression tests;
+  campaign deployment and slot-swap safety still require live-environment
+  rehearsal. Apply the reviewed webhook enum migration to existing databases
+  before deploying. Vulnerability scanning remains a deployment blocker; see
+  [IMAGE_VULNERABILITY_TRIAGE.md](./IMAGE_VULNERABILITY_TRIAGE.md). See
+  [PRODUCTION_INFRA.md](./PRODUCTION_INFRA.md) for setup, permissions,
+  prerequisites and unresolved validation. No GitHub Actions run or Azure
+  deployment has yet verified these workflows.
 
 ### Phase 14 — Final verification sweep
 ```bash

@@ -93,6 +93,7 @@ test.describe("verified family onboarding on mobile", () => {
         return json(route, {
           required: true,
           complete: false,
+          certificateId: "00000000-0000-4000-8000-000000000171",
           idVerificationStatus: "verified",
           lpoaSigned: false,
           estateQuestionNeeded: true,

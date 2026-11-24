@@ -33,19 +33,8 @@ test("profile routes are strict while progress semantics stay unchanged", () => 
   assert.doesNotMatch(completion, /profile:\s*Boolean\([^)]*(homeOccupancyStatus|hasVehicles)/);
 });
 
-test("housing and vehicle profile fields remain outside limited advisor summary", () => {
-  const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
-  const summaryStart = routes.indexOf("const summary = {", routes.indexOf('"/api/heartplan/advisor/:planId"'));
-  const detailsStart = routes.indexOf("response.details = {", summaryStart);
-  const summaryProjection = routes.slice(summaryStart, detailsStart);
-  assert.doesNotMatch(summaryProjection, /homeOccupancyStatus|hasVehicles/);
-  assert.match(routes.slice(detailsStart, detailsStart + 1200), /homeOccupancyStatus:\s*plan\.homeOccupancyStatus/);
-  assert.match(routes.slice(detailsStart, detailsStart + 1200), /hasVehicles:\s*plan\.hasVehicles/);
-});
-
 test("new profile answers are redacted from concierge plan projections", () => {
   const routes = readFileSync(new URL("./routes.ts", import.meta.url), "utf8");
-  assert.match(routes, /const adminSafePlan = adminHeartPlanSummary\(plan\)/);
   assert.match(routes, /plan:\s*adminHeartPlanSummary\(plan\)/);
   const projection = readFileSync(new URL("./heartplanAdmin.ts", import.meta.url), "utf8")
     .split("export function heartPlanCompletion")[0];

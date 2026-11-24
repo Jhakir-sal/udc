@@ -3540,7 +3540,7 @@ export default function CaseDetailPage() {
         </TabsContent>
 
         <TabsContent value="beneficiaries" className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-medium text-muted-foreground">{beneficiaries.length} beneficiar{beneficiaries.length === 1 ? "y" : "ies"} recorded</h3>
             <div className="flex items-center gap-2">
               <AdminSectionControl section="beneficiaries" value={sectionVisibility.beneficiaries} onChange={(v) => toggleSectionVisibility("beneficiaries", v)} />

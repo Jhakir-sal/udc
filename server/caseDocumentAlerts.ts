@@ -27,7 +27,7 @@ export function registerCaseDocumentAlerts(app: Express, authenticated: RequestH
       if (!(await storage.getCertificate(req.params.certId))) return res.status(404).json({ message: "Case not found." });
       await handler(req, res, actor);
     } catch (error: any) {
-      if (error instanceof z.ZodError) return res.status(400).json({ message: error.errors[0]?.message || "Invalid document selection." });
+      if (error instanceof z.ZodError) return res.status(400).json({ message: error.issues[0]?.message || "Invalid document selection." });
       res.status(503).json({ message: "Document upload status could not be updated. Refresh the status before trying again." });
     }
   };

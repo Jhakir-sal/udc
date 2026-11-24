@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { seedDatabase, ensureAdminUsers } from "./seed";
+import { seedDatabase } from "./seed";
 
 const app = express();
 const httpServer = createServer(app);
@@ -106,31 +106,6 @@ process.on("unhandledRejection", (reason) => {
 
 (async () => {
   await seedDatabase();
-  await ensureAdminUsers();
-
-  try {
-    const { db } = await import("./db");
-    const { certificates, notifications, lifeInsurancePolicies, nearestRelatives, connectedAccounts, beneficiaries, governmentNotifications, caseMessages, familyInvitations } = await import("@shared/schema");
-    const { eq, inArray } = await import("drizzle-orm");
-    const cleanupIds = ["ddfd435b-1018-47ce-89f6-99273bfdbde7", "2930a23c-7786-4556-ad9c-551a3c00c2ed"];
-    for (const cleanupId of cleanupIds) {
-      const existing = await db.select({ id: certificates.id }).from(certificates).where(eq(certificates.id, cleanupId));
-      if (existing.length > 0) {
-        await db.delete(notifications).where(eq(notifications.certificateId, cleanupId));
-        await db.delete(lifeInsurancePolicies).where(eq(lifeInsurancePolicies.certificateId, cleanupId));
-        await db.delete(nearestRelatives).where(eq(nearestRelatives.certificateId, cleanupId));
-        await db.delete(connectedAccounts).where(eq(connectedAccounts.certificateId, cleanupId));
-        await db.delete(beneficiaries).where(eq(beneficiaries.certificateId, cleanupId));
-        await db.delete(governmentNotifications).where(eq(governmentNotifications.certificateId, cleanupId));
-        await db.delete(caseMessages).where(eq(caseMessages.certificateId, cleanupId));
-        await db.delete(familyInvitations).where(eq(familyInvitations.certificateId, cleanupId));
-        await db.delete(certificates).where(eq(certificates.id, cleanupId));
-        console.log(`[Cleanup] Removed test case ${cleanupId} from database`);
-      }
-    }
-  } catch (e) {
-    console.error("[Cleanup] Error:", e);
-  }
 
   await registerRoutes(httpServer, app);
 

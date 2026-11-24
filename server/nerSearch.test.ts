@@ -43,6 +43,8 @@ test("NER completion requires recognized results, not a redirect, error or unkno
 
 test("case-scoped NER requests and reports persist accurate provenance without leaking another case", async () => {
   const [admin, family, stranger, caseA, caseB] = Array.from({ length: 5 }, () => randomUUID());
+  const originalNerUrl = process.env.NER_API_URL;
+  process.env.NER_API_URL = "https://ner.example.invalid/";
   let providerCalls = 0;
   let response: { status: number; body: unknown } = { status: 200, body: [] };
   let throwProvider = false;
@@ -52,7 +54,8 @@ test("case-scoped NER requests and reports persist accurate provenance without l
   app.use(express.json());
   registerNerSearchRoutes(app, (req: any, _res, next) => {
     req.session = { userId: req.header("x-test-actor") }; next();
-  }, async () => {
+  }, async (_input, providerUrl) => {
+    assert.equal(providerUrl, "https://ner.example.invalid");
     providerCalls++;
     started?.();
     if (hold) await new Promise<void>(resolve => { hold = resolve; });
@@ -83,6 +86,20 @@ test("case-scoped NER requests and reports persist accurate provenance without l
       id, userId: i ? stranger : family, deceasedName: "Case Person", dateOfBirth: "1950-01-01",
       dateOfDeath: "2026-01-01", certificateNumber: `SYN-NER-${id}`, issuingAuthority: "Synthetic",
     })));
+    for (const invalid of [undefined, "", "javascript:alert(1)", "https://user:pass@example.invalid"]) {
+      if (invalid === undefined) delete process.env.NER_API_URL;
+      else process.env.NER_API_URL = invalid;
+      assert.equal((await request("GET", "/api/ner-external/info")).status, 503);
+      const unavailable = await search("Disabled");
+      assert.equal(unavailable.status, 503);
+      assert.match(unavailable.data.message, /not configured or is invalid/);
+      assert.equal(providerCalls, 0);
+    }
+    assert.deepEqual((await request("GET", history())).data.records, []);
+    process.env.NER_API_URL = "https://ner.example.invalid/";
+    const info = await request("GET", "/api/ner-external/info");
+    assert.equal(info.status, 200);
+    assert.equal(info.data.guestSearchUrl, "https://ner.example.invalid/guest-search");
     assert.equal((await request("GET", history(), undefined, "")).status, 401);
     assert.equal((await request("GET", history(caseA, true))).status, 403);
     assert.equal((await request("GET", history(), undefined, stranger)).status, 403);
@@ -113,6 +130,7 @@ test("case-scoped NER requests and reports persist accurate provenance without l
     const completed = await search("Case");
     assert.equal(completed.status, 200);
     assert.equal(completed.data.outcome, "completed_no_match");
+    assert.equal(completed.data.searchUrl, "https://ner.example.invalid/guest-search");
     assert.equal(completed.data.caseLinked, true);
     assert.equal(completed.data.historyRecorded, true);
     assert.equal((await search("Case")).status, 429);
@@ -165,6 +183,8 @@ test("case-scoped NER requests and reports persist accurate provenance without l
     assert.equal(providerCalls, beforeDenied);
   } finally {
     hold?.();
+    if (originalNerUrl === undefined) delete process.env.NER_API_URL;
+    else process.env.NER_API_URL = originalNerUrl;
     await db.delete(nerSearchChecks).where(inArray(nerSearchChecks.actorId, [admin, family, stranger]));
     await db.delete(caseEvents).where(inArray(caseEvents.certificateId, [caseA, caseB]));
     await db.delete(certificates).where(inArray(certificates.id, [caseA, caseB]));

@@ -32,7 +32,7 @@ export function registerDocumentAccountLinks(app: Express, authenticated: Reques
         await handler(req, res, actor);
       } catch (error) {
         if (error instanceof z.ZodError) {
-          return res.status(400).json({ message: error.errors[0]?.message || "Invalid account selection." });
+          return res.status(400).json({ message: error.issues[0]?.message || "Invalid account selection." });
         }
         console.error("Document account assignment failed:", error instanceof Error ? error.name : "Unknown error");
         res.status(503).json({ message: "Document assignments could not be loaded or saved. Refresh and try again." });

@@ -5,6 +5,9 @@ local database, synthetic data, test accounts and recipients you control. Never
 put credentials in Git, chat, shell history, screenshots, or command output.
 Edit the existing ignored `.env` directly; do not replace its database, session,
 or authentication settings. Restart the server after changing it.
+For a new setup, see [README.md](../README.md) and
+[.env.example](../.env.example). Azure production infrastructure remains a
+[separate proposed plan](./PRODUCTION_INFRA.md).
 
 The app does not load `.env` by itself. With the existing Node 22 installation:
 
@@ -115,6 +118,21 @@ uses the direct `https://api.openai.com/v1` endpoint; the old
 `AI_INTEGRATIONS_OPENAI_*` settings are no longer read. If your old key is a
 valid direct OpenAI API key, enter it as `OPENAI_API_KEY` privately; a Replit
 Gateway key is not a substitute. Use synthetic data for testing.
+
+## NER and SAL integration
+
+UDC's infrastructure is independent; the registry integration is an inherited
+optional feature, not a deployment prerequisite. Search and info return 503
+without contacting an external service when `NER_API_URL` is missing or invalid.
+Registration additionally requires `NER_REGISTRATION_PATH`; a missing or
+incompatible endpoint fails registration and can exhaust automatic retries.
+Do not enable the paid registration workflow until its integration is reviewed.
+
+Do not configure an endpoint until its owner, environment, authentication,
+contracts and data handling are verified. `SAL_API_URL` and `UDC_WEBHOOK_KEY`
+enable a separate best-effort case-deletion notification; its receiver and
+delivery behavior still need verification. See Phase 11 in the
+[migration plan](./REPLIT_MIGRATION_PLAN.md) before enabling either integration.
 
 ## Azure Blob Storage
 

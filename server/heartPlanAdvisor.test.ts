@@ -78,6 +78,7 @@ test("owner routes remain separate and advisor mutations enforce edit permission
 const privatePlan = {
   id: "plan-1", status: "active", fullName: "Synthetic Planner",
   createdAt: new Date("2026-01-01"), dateOfBirth: "PRIVATE_DOB",
+  homeOccupancyStatus: "owns_home", hasVehicles: false,
   userId: "PRIVATE_OWNER", certificateId: "PRIVATE_CERTIFICATE",
 } as HeartPlan;
 type AdvisorReads = Parameters<typeof buildAdvisorResponse>[2];
@@ -106,6 +107,7 @@ for (const permission of ["view", "edit"]) {
     assert.deepEqual(response.access, { level: "limited", permission });
     assert.equal(advisorCanEdit(grant), permission === "edit");
     assert.equal("details" in response, false);
+    assert.doesNotMatch(JSON.stringify(response), /homeOccupancyStatus|hasVehicles/);
     assert.deepEqual(response.summary, {
       plannerName: "Synthetic Planner", status: "active",
       restingPreference: "cremation", serviceType: "private", additionalWishes: "Shared wish",
@@ -141,6 +143,8 @@ for (const permission of ["view", "edit"]) {
     assert.deepEqual(response.details?.contacts, [{ id: "contact", phone: "Full-only phone" }]);
     assert.deepEqual(response.details?.legacyMessages, [{ id: "letter", body: "Full-only message" }]);
     assert.equal(response.details?.profile.dateOfBirth, "PRIVATE_DOB");
+    assert.equal(response.details?.profile.homeOccupancyStatus, "owns_home");
+    assert.equal(response.details?.profile.hasVehicles, false);
     assert.doesNotMatch(JSON.stringify(response), /PRIVATE_PATH|PRIVATE_FAILURE|infoEmailAttempts/);
   });
 }

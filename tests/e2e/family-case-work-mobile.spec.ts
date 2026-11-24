@@ -22,7 +22,7 @@ const adminUser = {
 };
 
 const certificate = {
-  id: "mobile-case",
+  id: "00000000-0000-4000-8000-000000000170",
   deceasedName: "Alex Example",
   certificateNumber: "TEST-390",
   status: "processing",
@@ -73,16 +73,15 @@ async function expectActionIsUsable(action: Locator) {
   await action.scrollIntoViewIfNeeded();
   await expect(action).toBeVisible();
 
-  const box = await action.boundingBox();
-  expect(box, "the active next action must have a rendered box").not.toBeNull();
-  expect(box!.height, "the active next action must be at least 44px tall").toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await action.boundingBox())?.height ?? 0, {
+    message: "the active next action must be at least 44px tall",
+  }).toBeGreaterThanOrEqual(44);
 
-  const isTopmostAtCenter = await action.evaluate((element) => {
+  await expect.poll(() => action.evaluate((element) => {
     const rect = element.getBoundingClientRect();
     const topmost = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
     return topmost === element || element.contains(topmost);
-  });
-  expect(isTopmostAtCenter, "fixed UI must not cover the active next action").toBe(true);
+  }), { message: "fixed UI must not cover the active next action" }).toBe(true);
 }
 
 async function expectMobileCaseWorkIsUsable(page: Page, actions: Locator[]) {
@@ -99,6 +98,7 @@ async function mockFamilyCaseWork(page: Page) {
     if (path === "/api/onboarding/status") return json(route, { complete: true });
     if (path === "/api/certificates") return json(route, [certificate]);
     if (path === "/api/accounts") return json(route, [account]);
+    if (path === "/api/family-documents") return json(route, []);
     if (path === "/api/notifications") return json(route, []);
     if (path === "/api/heartplan/status") return json(route, { eligible: false, hasPlan: false });
     if (path === "/api/family/legacy-messages") return json(route, []);
@@ -140,6 +140,7 @@ test.describe("family case-work pages at 390px", () => {
           creditProtection: [],
           governmentNotifications: [],
           caseTasks: [],
+          relatives: [],
         });
       }
       if (path === `/api/admin/case/${certificate.id}/family-documents`) {
@@ -157,9 +158,13 @@ test.describe("family case-work pages at 390px", () => {
           },
         ]);
       }
+      if (path === `/api/admin/case/${certificate.id}/document-alerts`) {
+        return json(route, { unseenCount: 0, unseenDocumentIds: [], latestUploadedAt: null });
+      }
       if (
         path === `/api/admin/case/${certificate.id}/invitations` ||
         path === `/api/admin/case/${certificate.id}/family-accounts` ||
+        path === `/api/admin/case/${certificate.id}/document-account-links` ||
         path === `/api/admin/case/${certificate.id}/lpoa`
       ) {
         return json(route, []);

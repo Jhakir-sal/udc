@@ -212,7 +212,7 @@ export default function BlockchainPortal() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [step, setStep] = useState<"upload" | "review" | "form">("upload");
 
-  const form = useForm<CertificateFormData>({
+  const form = useForm<z.input<typeof certificateSchema>, unknown, CertificateFormData>({
     resolver: zodResolver(certificateSchema),
     defaultValues: {
       deceasedName: "",

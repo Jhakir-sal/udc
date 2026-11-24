@@ -20,6 +20,15 @@ test("rolling windows do not reset at midnight; exact expiry is excluded", () =>
   assert.deepEqual(warmupUsage([entry(59), entry(60), entry(1439), entry(1440), entry(5, "other")], now),
     { hourly: 1, daily: 3, otherHourly: 1, otherDaily: 1 });
 });
+test("future-dated traffic counts against budgets and provides a finite retry time", () => {
+  const futureOutreach = entry(-1);
+  const futureOther = entry(-2, "other");
+  assert.deepEqual(warmupUsage([futureOutreach, futureOther], now),
+    { hourly: 1, daily: 1, otherHourly: 1, otherDaily: 1 });
+  assert.equal(evaluateWarmup({ ...config, hourlyLimit: 1 }, [futureOutreach], now)?.retryAfterSeconds, 3660);
+  assert.equal(evaluateWarmup({ ...config, providerHourlyLimit: 1 }, [futureOther], now)?.retryAfterSeconds, 3720);
+  assert.equal(evaluateWarmup({ ...config, dailyLimit: 1 }, [futureOutreach], now)?.waitingForReview, true);
+});
 test("hourly and overall provider capacity, spacing, and daily review are distinct", () => {
   const hourly = evaluateWarmup({ ...config, hourlyLimit: 1 }, [entry(30)], now)!;
   assert.equal(hourly.retryAfterSeconds, 1800);

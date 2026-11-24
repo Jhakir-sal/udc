@@ -6,6 +6,7 @@ import { storage } from "./storage";
 import { canFamilyAccessCase } from "./caseAuthorization";
 import { caseEvents, nerSearchChecks } from "@shared/schema";
 import { NER_OUTCOME_LABELS, nerFamilyReportInput, nerSearchInput, type NerSearchResult } from "@shared/nerSearch";
+import { getNerApiUrl } from "./nerAdapter";
 
 type Transport = (input: z.infer<typeof nerSearchInput>, url: string) => Promise<{ status: number; body: unknown }>;
 const fail = (status: number, message: string): never => { throw Object.assign(new Error(message), { httpStatus: status }); };
@@ -55,7 +56,7 @@ export function registerNerSearchRoutes(app: Express, authenticated: RequestHand
     res.set("Cache-Control", "private, no-store");
     try { await handler(req, res); }
     catch (error: any) {
-      if (error instanceof z.ZodError) return res.status(400).json({ message: error.errors[0]?.message || "Invalid search details." });
+      if (error instanceof z.ZodError) return res.status(400).json({ message: error.issues[0]?.message || "Invalid search details." });
       return res.status(error.httpStatus || 503).json({ message: error.httpStatus ? error.message : "Search history could not be saved or confirmed. Review the history before searching again." });
     }
   };
@@ -73,10 +74,27 @@ export function registerNerSearchRoutes(app: Express, authenticated: RequestHand
     return certificate!;
   };
 
+  app.get("/api/ner-external/info", (_req, res) => {
+    const url = getNerApiUrl();
+    if (!url) return res.status(503).json({ message: "Registry integration is not configured or is invalid." });
+    return res.json({
+      name: "National Estate Registry",
+      url,
+      guestSearchUrl: `${url}/guest-search`,
+      description: "Search the National Estate Registry to find information about a family member's estate plan. Helps avoid probate delays and locate critical documents.",
+      pricing: {
+        searchFee: "$3.50",
+        foundFee: "$7.00 additional if estate found",
+      },
+    });
+  });
+
   app.post("/api/ner-external/search", authenticated, route(async (req, res) => {
     const actor = await getActor(req);
     const data = nerSearchInput.parse(req.body);
     if (data.certificateId) await getCase(data.certificateId, actor);
+    const url = getNerApiUrl();
+    if (!url) return fail(503, "Registry integration is not configured or is invalid.");
     const name = `${data.firstName} ${data.lastName}`;
     // Persist the request before making any external call; no audit write means no search.
     const record = await db.transaction(async tx => {
@@ -97,7 +115,6 @@ export function registerNerSearchRoutes(app: Express, authenticated: RequestHand
       }).returning();
       return inserted;
     });
-    const url = (process.env.NER_API_URL || "https://NATIONALESTATEREGISTRY.replit.app").replace(/\/$/, "");
     let result: ReturnType<typeof nerProviderResult>;
     try {
       const response = await searchProvider(data, url);

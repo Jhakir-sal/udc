@@ -57,7 +57,7 @@ export default function EstatePlans() {
   const [result, setResult] = useState<(NerSearchResult & { queriedName: string; queriedCaseId: string }) | null>(null);
   const selectionResolved = useRef(false);
 
-  const info = useQuery<NerInfo>({ queryKey: ["/api/ner-external/info"] });
+  const info = useQuery<NerInfo>({ queryKey: ["/api/ner-external/info"], retry: false });
   const certificates = useQuery<CertificateOption[]>({ queryKey: ["/api/certificates"] });
   const requestedCertificate = useQuery<CertificateOption>({
     queryKey: ["/api/certificates", requestedCertificateId],
@@ -135,6 +135,12 @@ export default function EstatePlans() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {info.isError && (
+                <Alert variant="destructive">
+                  <AlertTitle>Registry search unavailable</AlertTitle>
+                  <AlertDescription>The external registry connection is unavailable or not configured. Saved documents and search history remain available.</AlertDescription>
+                </Alert>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="ner-case-select">Link this search to a case (optional)</Label>
                 {!caseOptionsResolved ? <Skeleton className="h-10 w-full max-w-md" /> : (
@@ -192,7 +198,7 @@ export default function EstatePlans() {
                 </div>
               </div>
               <Button
-                disabled={!caseOptionsResolved || !firstName.trim() || !lastName.trim() || search.isPending}
+                disabled={!info.data || !caseOptionsResolved || !firstName.trim() || !lastName.trim() || search.isPending}
                 onClick={() => {
                   setResult(null);
                   search.mutate({

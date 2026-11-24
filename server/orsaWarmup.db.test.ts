@@ -90,6 +90,26 @@ async function seed(scope: string, count: number, minutesAgo: number) {
   })));
 }
 
+test("future-dated traffic remains counted and blocks sends until its window expires", dbOptions, async () => {
+  await syntheticScope(async scope => {
+    const future = new Date(Date.now() + 60_000);
+    await db.insert(attempts).values(Array.from({ length: expanded.providerHourlyLimit }, () => ({
+      scope, kind: "other", status: "attempted", createdAt: future,
+    })));
+    const overview = await getWarmupOverview(scope);
+    assert.equal(overview.usage.otherHourly, expanded.providerHourlyLimit);
+    assert.equal(overview.remaining.hourly, 0);
+    assert.ok(overview.nextAllowedAt);
+    const claim = await reserveWarmup("synthetic", "synthetic-admin", scope);
+    assert.equal(claim.allowed, false);
+    if (!claim.allowed) {
+      assert.match(claim.reason, /hourly/);
+      assert.ok(Number.isFinite(claim.retryAfterSeconds));
+      assert.ok(claim.retryAfterSeconds >= 3600);
+    }
+  });
+});
+
 test("expanded preset serializes tabs and a separate instance at the 30-second boundary; edits preserve reservations", dbOptions, async () => {
   await syntheticScope(async scope => {
     const claims = await race(scope);

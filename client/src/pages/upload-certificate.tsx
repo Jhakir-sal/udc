@@ -132,7 +132,7 @@ export default function UploadCertificate() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<CertificateFormValues>({
+  const form = useForm<z.input<typeof certificateFormSchema>, unknown, z.output<typeof certificateFormSchema>>({
     resolver: zodResolver(certificateFormSchema),
     defaultValues: {
       deceasedName: "",

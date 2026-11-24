@@ -2,7 +2,6 @@ import { db } from "./db";
 import { certificates, connectedAccounts, notifications } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
-import bcrypt from "bcrypt";
 
 const OLD_TO_NEW_CATEGORY: Record<string, string> = {
   telecommunications: "miscellaneous",
@@ -55,7 +54,6 @@ export async function migrateOldCategories() {
     console.error("Category migration error:", error.message);
   }
 }
-
 async function ensureAccountSyncColumns() {
   const columnsToAdd = [
     { column: "added_by", type: "text" },
@@ -387,58 +385,5 @@ export async function seedDatabase() {
     console.log("Database seeded successfully!");
   } catch (error) {
     console.error("Error seeding database:", error);
-  }
-}
-
-export async function ensureAdminUsers() {
-  try {
-    // Accounts that should always hold the admin role once they exist, but
-    // never get a password seeded here (they must register/reset normally).
-    const adminAccounts: Array<{ email: string; password?: string; firstName: string; lastName: string }> = [
-      { email: "georgemilian1@gmail.com", firstName: "George", lastName: "Milian" },
-    ];
-
-    // A known initial admin password is only ever created when an operator
-    // explicitly opts in via env vars (e.g. bootstrapping a brand new
-    // environment). This repo must never ship a hardcoded default admin
-    // password — see docs/REPLIT_MIGRATION_PLAN.md Phase 0.
-    const seedAdminEmail = process.env.ADMIN_SEED_EMAIL;
-    const seedAdminPassword = process.env.ADMIN_SEED_PASSWORD;
-    if (seedAdminEmail && seedAdminPassword) {
-      adminAccounts.push({
-        email: seedAdminEmail,
-        password: seedAdminPassword,
-        firstName: process.env.ADMIN_SEED_FIRST_NAME || "Admin",
-        lastName: process.env.ADMIN_SEED_LAST_NAME || "SAL",
-      });
-    }
-
-    for (const admin of adminAccounts) {
-      const existing = await db.execute(
-        sql`SELECT id, role, password_hash FROM users WHERE email = ${admin.email}`
-      );
-
-      if (existing.rows.length > 0) {
-        const user = existing.rows[0] as any;
-
-        if (user.role !== "admin") {
-          await db.execute(sql`UPDATE users SET role = 'admin' WHERE email = ${admin.email}`);
-          console.log(`Promoted ${admin.email} to admin`);
-        }
-        if (admin.password && !user.password_hash) {
-          const hash = await bcrypt.hash(admin.password, 10);
-          await db.execute(sql`UPDATE users SET password_hash = ${hash} WHERE email = ${admin.email}`);
-          console.log(`Set initial password for ${admin.email}`);
-        }
-      } else if (admin.password) {
-        const hash = await bcrypt.hash(admin.password, 10);
-        await db.execute(
-          sql`INSERT INTO users (email, first_name, last_name, role, password_hash, phone_verified) VALUES (${admin.email}, ${admin.firstName}, ${admin.lastName}, 'admin', ${hash}, true)`
-        );
-        console.log(`Created admin account for ${admin.email}`);
-      }
-    }
-  } catch (error: any) {
-    console.error("Error ensuring admin users:", error.message);
   }
 }

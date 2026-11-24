@@ -23,6 +23,12 @@ test("document assignments accept only explicit, bounded, unique account selecti
   ]) assert(!assignDocumentAccounts.safeParse(value).success);
 });
 
+test("oversized invalid account selections produce a bounded validation error", () => {
+  const result = assignDocumentAccounts.safeParse({ accountIds: Array(10_000).fill("invalid") });
+  assert.equal(result.success, false);
+  if (!result.success) assert.equal(result.error.issues.length, 1);
+});
+
 test("staff can persist and remove case-bound document links without approving or sharing files", async () => {
   const [admin, family, outsider, caseA, caseB, accountA, accountA2, accountB, docA, docA2, docB, unscopedDoc] =
     Array.from({ length: 12 }, () => randomUUID());
@@ -92,6 +98,9 @@ test("staff can persist and remove case-bound document links without approving o
     assert.equal((await request(unscopedDoc, { accountIds: [accountA] })).status, 404);
     assert.equal((await request(docA, { accountIds: [randomUUID()] })).status, 400);
     assert.equal((await request(docA, { accountIds: [accountA, accountA] })).status, 400);
+    const invalid = await request(docA, { accountIds: ["invalid"] });
+    assert.equal(invalid.status, 400);
+    assert.equal(typeof invalid.data.message, "string");
     assert.equal((await request(docA, { accountIds: [], approved: true })).status, 400);
     assert.equal((await request(docA, { accountIds: [] }, family)).status, 403);
     assert.deepEqual((await request()).data, saved.data);

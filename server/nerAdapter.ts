@@ -1,10 +1,24 @@
 export type NerRegistrationInput = { enrollmentId: string; userId: string };
 
+export function getNerApiUrl(): string | null {
+  const configured = process.env.NER_API_URL?.trim();
+  if (!configured) return null;
+  try {
+    const url = new URL(configured);
+    if (!["http:", "https:"].includes(url.protocol) ||
+        (process.env.NODE_ENV === "production" && url.protocol !== "https:") ||
+        url.username || url.password || url.search || url.hash) return null;
+    return url.href.replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
 /** External contract is intentionally isolated until NER provides its schema. */
 export async function registerWithNer(input: NerRegistrationInput): Promise<{ reference: string }> {
-  const baseUrl = process.env.NER_API_URL;
+  const baseUrl = process.env.NER_API_URL?.trim();
   const path = process.env.NER_REGISTRATION_PATH;
-  if (!baseUrl || !path) throw new Error("NER integration is not configured; retry after NER_API_URL and NER_REGISTRATION_PATH are set");
+  if (!baseUrl || !getNerApiUrl() || !path) throw new Error("NER integration is not configured; retry after NER_API_URL and NER_REGISTRATION_PATH are set");
   const response = await fetch(new URL(path, baseUrl), {
     method: "POST", headers: {
       "content-type": "application/json",

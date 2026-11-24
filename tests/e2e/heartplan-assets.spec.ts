@@ -136,7 +136,7 @@ test("ZIP autofill succeeds while failed lookups preserve manual city and state"
   await page.getByTestId("input-zip").fill("90210");
   await expect(page.getByTestId("input-city")).toHaveValue("Beverly Hills");
   await expect(page.getByTestId("input-state")).toHaveValue("CA");
-  await expect(page.locator("#zip-lookup-status")).toHaveText("City and state filled from ZIP.");
+  await expect(page.locator("#zip-lookup-status")).toHaveText("ZIP lookup complete. Review city and state.");
 
   await page.getByTestId("input-city").fill("Manual City");
   await page.getByTestId("input-state").fill("ZZ");
@@ -146,7 +146,25 @@ test("ZIP autofill succeeds while failed lookups preserve manual city and state"
   await expect(page.getByTestId("input-state")).toHaveValue("ZZ");
 });
 
-test("planners can save multiple real-estate and vehicle records without leaving the entry flow", async ({ page }) => {
+test("a delayed ZIP lookup does not overwrite manual address edits", async ({ page }) => {
+  await mockPlanner(page);
+  let releaseLookup: () => void = () => {};
+  const pendingLookup = new Promise<void>(resolve => { releaseLookup = resolve; });
+  await page.route("**/api/locations/us-zip/90210", async route => {
+    await pendingLookup;
+    await json(route, { city: "Beverly Hills", state: "CA" });
+  });
+  await page.goto("/");
+  await page.getByTestId("input-zip").fill("90210");
+  await page.getByTestId("input-city").fill("Manual City");
+  await page.getByTestId("input-state").fill("ZZ");
+  releaseLookup();
+  await expect(page.locator("#zip-lookup-status")).toHaveText("ZIP lookup complete. Review city and state.");
+  await expect(page.getByTestId("input-city")).toHaveValue("Manual City");
+  await expect(page.getByTestId("input-state")).toHaveValue("ZZ");
+});
+
+test("planners can save multiple real-estate and vehicle records", async ({ page }) => {
   const assets: Asset[] = [];
   await mockPlanner(page, assets);
   await page.goto("/heartplan/assets");
@@ -161,7 +179,8 @@ test("planners can save multiple real-estate and vehicle records without leaving
 
   await enterAsset(page, { name: "Lake house", type: "Second home or vacation property" });
   await page.getByTestId("button-save-asset").click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page).toHaveURL(/\/heartplan\/contacts$/);
+  await page.goto("/heartplan/assets");
   await expect(page.getByText("Primary home", { exact: true })).toBeVisible();
   await expect(page.getByText("Lake house", { exact: true })).toBeVisible();
 
@@ -184,7 +203,8 @@ test("planners can save multiple real-estate and vehicle records without leaving
     vehicleStatus: "Owned outright / paid off",
   });
   await page.getByTestId("button-save-asset").click();
-  await expect(page.getByRole("dialog")).toBeHidden();
+  await expect(page).toHaveURL(/\/heartplan\/contacts$/);
+  await page.goto("/heartplan/assets");
 
   for (const name of ["Primary home", "Lake house", "Family SUV", "Commuter car"]) {
     await expect(page.getByText(name, { exact: true })).toBeVisible();

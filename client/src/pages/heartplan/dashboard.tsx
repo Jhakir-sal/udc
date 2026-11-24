@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -81,24 +81,37 @@ export default function HeartPlanDashboard() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [verifyingUpgrade, setVerifyingUpgrade] = useState(false);
   const [zipLookupStatus, setZipLookupStatus] = useState<"idle" | "loading" | "found" | "not_found">("idle");
+  const zipLookup = useRef<{ zip: string } | null>(null);
   const advance = useHeartPlanAdvance("profile");
 
   const lookUpZip = async (rawZip: string) => {
     const zip = rawZip.trim().match(/^\d{5}/)?.[0];
     if (!zip) {
+      zipLookup.current = null;
       setZipLookupStatus("idle");
       return;
     }
+    if (zipLookup.current?.zip === zip) return;
+    const lookup = { zip };
+    zipLookup.current = lookup;
     setZipLookupStatus("loading");
     try {
       const response = await apiRequest("GET", `/api/locations/us-zip/${zip}`);
       const location = await response.json() as { city: string; state: string };
+      if (zipLookup.current !== lookup) return;
       setProfile(current => current.zip.trim().startsWith(zip)
-        ? { ...current, city: location.city, state: location.state }
+        ? {
+            ...current,
+            city: current.city === profile.city ? location.city : current.city,
+            state: current.state === profile.state ? location.state : current.state,
+          }
         : current);
       setZipLookupStatus("found");
     } catch {
-      setZipLookupStatus("not_found");
+      if (zipLookup.current === lookup) {
+        zipLookup.current = null;
+        setZipLookupStatus("not_found");
+      }
     }
   };
 
@@ -469,7 +482,10 @@ export default function HeartPlanDashboard() {
                   onChange={(e) => {
                     const zip = e.target.value;
                     setProfile({ ...profile, zip });
-                    setZipLookupStatus("idle");
+                    if (!zipLookup.current || !zip.trim().startsWith(zipLookup.current.zip)) {
+                      zipLookup.current = null;
+                      setZipLookupStatus("idle");
+                    }
                     if (/^\d{5}$/.test(zip.trim())) void lookUpZip(zip);
                   }}
                   onBlur={(e) => void lookUpZip(e.target.value)}
@@ -477,7 +493,7 @@ export default function HeartPlanDashboard() {
                   data-testid="input-zip" />
                 <p id="zip-lookup-status" className="min-h-4 text-xs text-muted-foreground" aria-live="polite">
                   {zipLookupStatus === "loading" && "Finding city and state…"}
-                  {zipLookupStatus === "found" && "City and state filled from ZIP."}
+                  {zipLookupStatus === "found" && "ZIP lookup complete. Review city and state."}
                   {zipLookupStatus === "not_found" && "ZIP not found. Enter city and state manually."}
                 </p>
               </div>
