@@ -14,7 +14,7 @@ const childEnv = {
   SESSION_SECRET: "synthetic-startup-test-secret",
 };
 
-test("startup preserves cases and does not promote or seed admins", { skip: !enabled, timeout: 60000 }, async () => {
+test("startup preserves cases, failed webhooks, and user privileges", { skip: !enabled, timeout: 150000 }, async () => {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
   const certificateId = "ddfd435b-1018-47ce-89f6-99273bfdbde7";
   const email = `startup-${randomUUID()}@example.invalid`;
@@ -22,6 +22,8 @@ test("startup preserves cases and does not promote or seed admins", { skip: !ena
   await client.connect();
   let insertedCase = false;
   let userId: string | undefined;
+  let accountId: string | undefined;
+  let webhookId: string | undefined;
   let child: ReturnType<typeof spawn> | undefined;
   try {
     const user = await client.query("INSERT INTO users (email, role) VALUES ($1, 'user') RETURNING id", [email]);
@@ -31,6 +33,14 @@ test("startup preserves cases and does not promote or seed admins", { skip: !ena
       [certificateId, "Synthetic case", "2020-01-01", "1970-01-01", randomUUID(), "Synthetic authority"],
     );
     insertedCase = true;
+    accountId = (await client.query(
+      "INSERT INTO connected_accounts (certificate_id, account_name, account_type, category) VALUES ($1, 'Synthetic', 'Synthetic', 'miscellaneous') RETURNING id",
+      [certificateId],
+    )).rows[0].id;
+    webhookId = (await client.query(
+      "INSERT INTO webhook_logs (account_id, certificate_id, webhook_url, payload, encrypted_data, blockchain_hash, status, sent_at) VALUES ($1, $2, 'https://example.invalid', '{}', 'synthetic', 'synthetic', 'failed', now() - interval '2 hours') RETURNING id",
+      [accountId, certificateId],
+    )).rows[0].id;
     for (const seedEmail of [email, missingEmail]) {
       child = spawn(process.execPath, [tsx, "server/index.ts"], {
         env: {
@@ -58,6 +68,11 @@ test("startup preserves cases and does not promote or seed admins", { skip: !ena
           reject(new Error(`Startup exited (${code}):\n${output}`));
         });
       });
+      if (seedEmail === email) {
+        await new Promise(resolve => setTimeout(resolve, 63000));
+        const webhook = await client.query("SELECT status, retry_count FROM webhook_logs WHERE id = $1", [webhookId]);
+        assert.deepEqual(webhook.rows[0], { status: "failed", retry_count: "0" });
+      }
       current.kill("SIGTERM");
       await new Promise<void>((resolve) => current.once("exit", () => resolve()));
       child = undefined;
@@ -67,6 +82,8 @@ test("startup preserves cases and does not promote or seed admins", { skip: !ena
     assert.equal((await client.query("SELECT id FROM certificates WHERE id = $1", [certificateId])).rowCount, 1);
   } finally {
     child?.kill("SIGTERM");
+    if (webhookId) await client.query("DELETE FROM webhook_logs WHERE id = $1", [webhookId]);
+    if (accountId) await client.query("DELETE FROM connected_accounts WHERE id = $1", [accountId]);
     if (insertedCase) await client.query("DELETE FROM certificates WHERE id = $1", [certificateId]);
     if (userId) await client.query("DELETE FROM users WHERE id = $1", [userId]);
     await client.end();

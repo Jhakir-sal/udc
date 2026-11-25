@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
 import { registerDisabledNaicSearch } from "./naicSafety";
+import { registerDisabledRelativesSearch } from "./relativesSearchSafety";
 import { registerCompanyReportingResearch } from "./companyReportingResearch";
 import { matchesMfaCode } from "./verificationCodePurpose";
 import { z } from "zod";
@@ -25,6 +26,7 @@ import {
 } from "./idVerificationFallback";
 import twilio from "twilio";
 import { sendEmail, buildNextOfKinNotificationEmail, buildTeamVerificationEmail, buildFamilyInvitationEmail, buildVerificationCodeEmail, buildCertificateIdEmail, buildActivationRequestConfirmEmail, buildTrustedContactInfoEmail, buildHeartPlanAdvisorInvitationEmail, buildIncompleteHeartPlanIntakeReminderEmail, buildTrustedContactEmailUndeliverableEmail, buildTrustedContactEmailFailedAdminAlertEmail, buildActivationConfirmedAdminAlertEmail, buildLpoaSignatureRequestEmail, buildReferralConfirmationRequestEmail, buildReferralProgressEmail, buildCompanyDeathNoticeEmail, buildFuneralHomeCertificateUploadEmail, buildOrsaRosterInvitationEmail, isEmailDeliveryConfigured, getAppUrl } from "./email";
+import { registrationAvailability } from "./registrationAvailability";
 import { familyInvitations, familyInvitationChallenges, familySignupConsentRecords, caseFamilyMemberships, smsMessages, insertFamilyDocumentSchema, insertPlanDocumentSchema, insertPlanAssetSchema, planAssetPatchSchema, insertPlanContactSchema, insertPlanLetterSchema, insertPlanWishesSchema, updatePlanLetterSchema, planMessageUploadSchema, planMessageFinalizeSchema, discoveryItemPatchSchema, HEARTPLAN_VAULT_LIMITS, MAX_INFO_EMAIL_ATTEMPTS, hardAssetValuations, hardAssetValuationAttachments, hardAssetValuationUploadSchema, hardAssetComparablesUpdateSchema, deathCertificateInvites, type HeartPlan, type PlanContact, type InsertPlanDiscoveryItem, type HardAssetComparableSale } from "@shared/schema";
 import { canAccessFinancialDiscovery } from "./financialDiscoveryPolicy";
 import { EventWebhook } from "@sendgrid/eventwebhook";
@@ -1396,7 +1398,7 @@ export async function registerRoutes(
   });
 
   // Register new user with email/password
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", registrationAvailability(() => isEmailDeliveryConfigured() && !!process.env.FROM_EMAIL?.trim()), async (req, res) => {
     try {
       const registration = z.object({
         email: z.string().trim().email(),
@@ -5533,84 +5535,7 @@ Today's date: ${new Date().toLocaleDateString("en-US", { year: "numeric", month:
     }
   });
 
-  app.post("/api/admin/case/:certId/relatives/search", isAuthenticated, isAdmin, async (req: any, res) => {
-    try {
-      const { certId } = req.params;
-      const certificate = await storage.getCertificate(certId);
-      if (!certificate) {
-        return res.status(404).json({ error: "Certificate not found" });
-      }
-
-      // Clear previous results for fresh search
-      await storage.deleteNearestRelativesByCertificate(certId);
-
-      const deceasedName = certificate.deceasedName || "Unknown";
-      const nameParts = deceasedName.split(" ");
-      const lastName = nameParts[nameParts.length - 1];
-
-      const nokFullAddress = [certificate.nextOfKinAddress, certificate.nextOfKinCity, certificate.nextOfKinState, certificate.nextOfKinZip].filter(Boolean).join(", ");
-      const addressParts = [
-        nokFullAddress,
-        certificate.informantAddress,
-        certificate.contactAddress,
-      ].filter(Boolean);
-      const searchAddress = addressParts[0] || certificate.placeOfDeathCounty || certificate.placeOfDeathState || "";
-      const stateOfDeath = certificate.placeOfDeathState || "";
-      const countyOfDeath = certificate.placeOfDeathCounty || "";
-
-      const stateAbbr = stateOfDeath.length === 2 ? stateOfDeath : stateOfDeath.substring(0, 2).toUpperCase();
-      const streets = ["Oak St", "Maple Ave", "Pine Rd", "Elm Dr", "Cedar Ln", "Birch Ct", "Walnut Blvd", "Willow Way"];
-      const cities = countyOfDeath 
-        ? [countyOfDeath.replace(" County", ""), "Springfield", "Riverside", "Lakewood"]
-        : ["Springfield", "Riverside", "Lakewood", "Fairview"];
-
-      const familyMembers = [
-        { firstName: "Helen", relationship: "Spouse", age: "62", confidence: "high" },
-        { firstName: "Diana", relationship: "Daughter", age: "38", confidence: "high" },
-        { firstName: "Danny", relationship: "Son", age: "41", confidence: "high" },
-        { firstName: "David", relationship: "Son", age: "36", confidence: "high" },
-        { firstName: "George", relationship: "Son", age: "34", confidence: "high", lastNameOverride: "Milian" },
-        { firstName: "Sarah", relationship: "Daughter", age: "32", confidence: "high" },
-      ];
-
-      const discovered: any[] = [];
-
-      for (const member of familyMembers) {
-        const memberLastName = member.lastNameOverride || lastName;
-        const city = cities[Math.floor(Math.random() * cities.length)];
-        const street = streets[Math.floor(Math.random() * streets.length)];
-        const houseNum = 100 + Math.floor(Math.random() * 9900);
-        const zip = String(10000 + Math.floor(Math.random() * 89999));
-        const areaCode = String(200 + Math.floor(Math.random() * 799));
-        const phone = `(${areaCode}) ${String(200 + Math.floor(Math.random() * 799))}-${String(1000 + Math.floor(Math.random() * 8999))}`;
-
-        const relative = await storage.createNearestRelative({
-          certificateId: certId,
-          fullName: `${member.firstName} ${memberLastName}`,
-          relationship: member.relationship,
-          phone,
-          email: `${member.firstName.toLowerCase()}.${memberLastName.toLowerCase()}@email.com`,
-          address: `${houseNum} ${street}`,
-          city,
-          state: stateAbbr || "IL",
-          zipCode: zip,
-          age: member.age,
-          dataSource: "public_records",
-          confidence: member.confidence,
-        });
-        discovered.push(relative);
-      }
-
-      res.json({
-        searchQuery: { name: deceasedName, address: searchAddress, state: stateOfDeath },
-        resultsCount: discovered.length,
-        relatives: discovered,
-      });
-    } catch (error) {
-      console.error("Relatives search error:", error);
-      res.status(500).json({ error: "Failed to search for relatives" });
-    }
-  });
+  registerDisabledRelativesSearch(app, isAuthenticated, isAdmin);
 
   app.delete("/api/admin/case/:certId", isAuthenticated, isAdmin, async (req: any, res) => {
     try {
@@ -10872,7 +10797,7 @@ Return ONLY valid JSON:
   // Public: HeartPlan sign-up. Mirrors /api/auth/register (same password rules and
   // email verification flow — the verify/resend endpoints are shared), but creates
   // a "planner" account plus its HeartPlan and skips the death-case onboarding.
-  app.post("/api/heartplan/register", async (req: any, res) => {
+  app.post("/api/heartplan/register", registrationAvailability(() => isEmailDeliveryConfigured() && !!process.env.FROM_EMAIL?.trim()), async (req: any, res) => {
     try {
       const registration = heartPlanRegistrationSchema.safeParse(req.body);
 
@@ -13147,53 +13072,7 @@ Return ONLY valid JSON:
     }
   });
 
-  // Webhook retry sweeper — retries failed provider notifications up to 3 times,
-  // then flags them for manual contact. Runs every 30 minutes.
-  const MAX_WEBHOOK_RETRIES = 3;
-  async function sweepFailedWebhooks() {
-    try {
-      const logs = await storage.getWebhookLogs();
-      const now = Date.now();
-      for (const log of logs) {
-        if (log.status !== "failed") continue;
-        const retries = parseInt(log.retryCount || "0", 10) || 0;
-        // Space attempts out: wait at least 1 hour since the last attempt
-        const lastAttempt = new Date(log.sentAt).getTime();
-        if (now - lastAttempt < 60 * 60 * 1000) continue;
-
-        if (retries >= MAX_WEBHOOK_RETRIES) {
-          // Retries exhausted — flag once for manual contact
-          await storage.updateWebhookLog(log.id, {
-            status: "failed_permanent",
-            responseBody: "Automatic retries exhausted — manual contact required",
-          });
-          const account = await storage.getConnectedAccount(log.accountId);
-          await storage.createNotification({
-            certificateId: log.certificateId,
-            accountId: log.accountId,
-            message: `Notification to ${account?.accountName || "provider"} failed after ${MAX_WEBHOOK_RETRIES} attempts — manual contact required.`,
-            type: "webhook_failed",
-          });
-          logCaseEventSafe(log.certificateId, "notification_failed",
-            `Automated notification to ${account?.accountName || "provider"} failed after ${MAX_WEBHOOK_RETRIES} attempts — flagged for manual contact`, undefined, "system");
-        } else {
-          // Re-attempt delivery; the log stays retry-eligible until the provider
-          // confirms success via the callback endpoint (which resets/clears it)
-          // or retries are exhausted.
-          await storage.updateWebhookLog(log.id, {
-            status: "sent",
-            retryCount: String(retries + 1),
-            sentAt: new Date(),
-          });
-          console.log(`[Webhook Retry] Re-sent webhook ${log.id} (retry ${retries + 1} of ${MAX_WEBHOOK_RETRIES})`);
-        }
-      }
-    } catch (err) {
-      console.error("[Webhook Retry] Sweep failed:", err);
-    }
-  }
-  setInterval(sweepFailedWebhooks, 30 * 60 * 1000).unref?.();
-  setTimeout(sweepFailedWebhooks, 60 * 1000).unref?.();
+  console.warn("[Webhook Retry] Automatic retries are disabled; review failed webhook logs and contact providers manually.");
 
   async function sweepAbandonedValuationEvidence() {
     try {

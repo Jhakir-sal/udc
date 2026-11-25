@@ -1113,20 +1113,6 @@ export default function CaseDetailPage() {
     },
   });
 
-  const searchRelativesMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", `/api/admin/case/${certId}/relatives/search`);
-      return res.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/case", certId] });
-      toast({ title: `Found ${data.resultsCount} relatives from public records` });
-    },
-    onError: () => {
-      toast({ title: "Failed to search public records", variant: "destructive" });
-    },
-  });
-
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -3438,24 +3424,13 @@ export default function CaseDetailPage() {
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     <UserSearch className="h-4 w-4" />
-                    Nearest Relatives — Public Data Search
+                    Nearest Relatives
                   </CardTitle>
                   <CardDescription>
-                    Search public records using the deceased's address and personal data to find nearest relatives and their contact information.
+                    Public records search is unavailable. Existing results may be synthetic; independently verify them before contact.
                   </CardDescription>
                 </div>
-                <Button
-                  onClick={() => searchRelativesMutation.mutate()}
-                  disabled={searchRelativesMutation.isPending}
-                  data-testid="button-search-relatives"
-                >
-                  {searchRelativesMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4 mr-2" />
-                  )}
-                  {searchRelativesMutation.isPending ? "Searching..." : "Search Public Records"}
-                </Button>
+                <Button disabled data-testid="button-search-relatives">Search unavailable</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -3463,7 +3438,7 @@ export default function CaseDetailPage() {
                 <div className="space-y-3">
                   <div className="text-xs text-muted-foreground flex items-center gap-1 mb-2">
                     <Globe className="h-3 w-3" />
-                    {relatives.length} relative(s) found via public records search
+                    {relatives.length} saved relative(s); source and contact details are unverified
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     {relatives.map((rel: any) => (
@@ -3474,17 +3449,7 @@ export default function CaseDetailPage() {
                               <User className="h-4 w-4 text-primary" />
                               <span className="font-semibold text-sm" data-testid={`text-relative-name-${rel.id}`}>{rel.fullName}</span>
                             </div>
-                            <div className="flex items-center gap-1">
-                              {rel.confidence && (
-                                <Badge
-                                  variant={rel.confidence === "high" ? "default" : rel.confidence === "medium" ? "secondary" : "outline"}
-                                  className="text-[10px]"
-                                  data-testid={`badge-confidence-${rel.id}`}
-                                >
-                                  {rel.confidence}
-                                </Badge>
-                              )}
-                            </div>
+                            <Badge variant="outline" className="text-[10px]">Unverified</Badge>
                           </div>
                           {rel.relationship && (
                             <div className="flex items-center gap-2 text-xs">
@@ -3519,7 +3484,7 @@ export default function CaseDetailPage() {
                           )}
                           <div className="flex items-center gap-2 text-[10px] text-muted-foreground pt-1 border-t">
                             <Globe className="h-3 w-3" />
-                            Source: {rel.dataSource?.replace("_", " ")} &middot; Found {new Date(rel.discoveredAt).toLocaleDateString()}
+                            Reported source: {rel.dataSource?.replace("_", " ")} &middot; Saved {new Date(rel.discoveredAt).toLocaleDateString()}
                           </div>
                         </CardContent>
                       </Card>
@@ -3529,8 +3494,8 @@ export default function CaseDetailPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <UserSearch className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">No relatives discovered yet.</p>
-                  <p className="text-xs mt-1">Click "Search Public Records" to search using the deceased's address and personal data.</p>
+                  <p className="text-sm">No saved relatives.</p>
+                  <p className="text-xs mt-1">Search requires a verified public records provider.</p>
                 </div>
               )}
             </CardContent>

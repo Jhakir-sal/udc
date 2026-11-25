@@ -37,6 +37,7 @@
     "test:family-invitations": "tsx --test server/familyInvitationService.test.ts",
     "test:assistant": "tsc -p tests/assistant/tsconfig.json && tsx --test server/accountIntakeIntent.test.ts && playwright test --config tests/assistant/playwright.config.ts",
     "db:protect-consent-ledger": "tsx script/ensure-consent-ledger.ts",
+    "db:migrate": "drizzle-kit migrate",
     "db:bootstrap-admin": "tsx script/bootstrap-admin.ts",
     "db:cleanup-family-invitation-tokens": "tsx script/cleanup-family-invitation-tokens.ts",
     "test:e2e": "playwright test",

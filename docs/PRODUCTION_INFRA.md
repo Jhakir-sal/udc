@@ -1,17 +1,128 @@
 # UDC production infrastructure plan
 
-This is a **proposed design and checklist**, not a validated deployment.
-The `UDC-Staging` resource group was created in East US 2 in the active
-Azure Primary Subscription, tagged `application=udc` and
-`environment=staging`. It contains no resources. No app, database, registry,
-storage, identity, provider configuration, or deployment has been created.
-Confirm ownership, naming, budget, recovery objectives and security
-requirements before provisioning the remaining infrastructure.
+The low-cost production foundation is provisioned and the app is running at
+`https://udc-prd-eus2-web01.azurewebsites.net`. Public app access is enabled;
+SCM access remains denied. The app is **not ready for real data or production
+operations**: administrator MFA, provider delivery, monitoring and a
+coordinated recovery procedure remain unverified. The separate `UDC-Staging`
+resource group remains empty. Both groups are in East US 2 in the active Azure
+Primary Subscription.
 
 UDC must use **its own Azure resources, identities, configuration and
 credentials**. The sibling NER application is a migration example, not a
 service, registry, credential source or infrastructure dependency. Inherited
 external integrations are optional and require separate approval.
+
+## Provisioned production foundation
+
+The following UDC-only resources were deployed on November 25, 2026 in
+`UDC-Production` (East US 2), using
+[`infra/production.bicep`](../infra/production.bicep):
+
+| Resource | Current baseline |
+|---|---|
+| App Service plan `udc-prd-eus2-plan01` | Linux Basic B1, one instance. This tier has no deployment slots or automatic scaling. |
+| Web app `udc-prd-eus2-web01` | Running; HTTPS required, public app access allowed, SCM denied, FTP disabled. The scanned candidate image is configured by registry digest. VNet integration, a system-assigned identity, basic runtime settings and Key Vault session and database references are configured and the references resolved. |
+| PostgreSQL `udc-prd-eus2-pg01` | PostgreSQL 16, Burstable B2s, 32 GiB storage, private delegated subnet and private DNS; public network disabled and TLS required. The `udc_production` database has the fresh baseline schema and application login; no historical data was imported. Seven-day backup retention, no geo-redundancy or high availability. Storage auto-growth is disabled. |
+| Storage `udcprdeus2app01` | Standard LRS; HTTPS/TLS 1.2, shared keys and anonymous access disabled. Both `private` and `public` containers are private; versioning and seven-day blob/container soft-delete are enabled. The authenticated Blob endpoint is publicly reachable. Upload CORS allows `PUT` from the default UDC App Service hostname only. |
+| Registry `udcprdeus2acr01` | Basic, registry admin account disabled; the scanned candidate is published by digest. |
+| Key Vault `udc-prd-eus2-kv01` | RBAC, 90-day soft delete and purge protection. Generated database administrator, application connection and session secrets are stored here; the current operator has secret-management access. |
+| Network `udc-prd-eus2-vnet01` | Separate UDC address space with delegated PostgreSQL and App Service subnets and a linked private DNS zone. |
+
+Azure rejected the less expensive B1ms PostgreSQL SKU twice with
+`SkuNotAvailable`; B2s was the next-smallest advertised SKU and deployed
+successfully. As a rough East US 2 baseline, B2s compute is about $49.64/month
+and 32 GiB storage about $3.68/month; Basic registry is about $5/month and
+Linux B1 hosting is approximately $12–$14/month. Expect roughly **$71–$73
+per month plus** DNS, Blob usage, backup overage, network, Key Vault,
+monitoring, taxes and other usage. These are estimates, not a spending cap;
+the App Service plan is billed even while the app is disabled. Confirm actual
+rates and configure a budget and alerts in Azure Cost Management.
+
+The identity has registry pull and Blob data/delegation roles scoped to the
+UDC resources, and secret-read access scoped to the session and database URL
+secrets. The `udc_app` database login has connect access and usage/create
+privileges on the public schema, without database-administrator privileges.
+On November 25, 2026 a temporary UDC-only private-network operator verified
+the application login, schema privilege and TLS. A guarded migration created
+the empty baseline with `udc_app` as owner and revoked its temporary database
+schema-creation privilege. The running App Service resolved both Key Vault
+references and successfully performed a database-backed lookup. The temporary
+infrastructure and elevated identity were removed. Importing tables with
+different ownership requires a reviewed ownership and permissions plan.
+
+Before reusing the Bicep
+template, retrieve and supply the **existing** secrets securely: regenerating
+the session secret can make encrypted identities unreadable. The template
+also deliberately disables the app, restores its placeholder image and denies
+inbound traffic on redeployment. The later database secret, role assignment and
+image configuration are not represented in the template; review and reconcile
+this drift before making a later deployment.
+
+No custom domain, provider credentials, deployment identity/workflow or
+monitoring alerts have been configured. Production capacity, networking, DNS, recovery
+objectives and privacy/security requirements remain unapproved. Basic hosting
+and single-region storage/database provide no high availability; assess and
+scale them before real traffic. PostgreSQL reported an earliest restore point
+after provisioning. A pre-migration point-in-time restore was verified in an
+isolated temporary server; synthetic Blob version/metadata and Key Vault
+secret-version recovery were also rehearsed. These are not a coordinated
+recovery of real data or a measured recovery-time test. Keep real data out
+until coordinated recovery, monitoring, authorization and provider isolation
+have been validated. Synthetic recovery versions may remain in Blob and
+soft-deleted Key Vault retention until their configured retention periods expire.
+
+A local production candidate image
+(`sha256:bdebcbf902a3ee93f9c5b695873f1f5714aa8bacedfbaa0815a95ca19b41ce6a`)
+was built with the default UDC hostname using the cached Wolfi base and upgraded
+packages. A Trivy vulnerability scan found no high or critical findings. The
+image is deployed by registry manifest digest
+`sha256:042691997e27d2a00895d131a356e25775a6d02afe2c54b92cb5966bdae5af0d`.
+Public checks verified the home page, an unauthenticated admin denial and a
+database-backed invitation lookup. SCM returned 403 from an external client.
+
+The generated [baseline migration](../migrations/0000_baseline.sql) and
+[consent trigger migration](../migrations/0001_consent_ledger.sql) were
+applied twice to disposable PostgreSQL 16, then applied to the empty Azure
+database. The Azure migration verified 96 tables, two migration records and
+the consent deletion guard; the migrated local schema passed the application
+suite and consent update/delete protection tests.
+The baseline is for a **new empty database only**. Do not apply it to an
+existing Replit database or restore a complete dump over it without first
+reviewing the source schema, migration history, restore method and rollback.
+The source and scope of the real data and Blob objects are not yet established.
+
+The default App Service hostname is provisionally configured as
+`PUBLIC_APP_URL`; replacing it with a custom domain also requires updating
+Blob CORS and rebuilding the image's `PRODUCTION_SITE_URL`. Add provider keys
+directly to Key Vault, not to chat. For the first administrator, the next
+critical provider configuration is a UDC-owned SendGrid API key and verified
+`FROM_EMAIL`, because admin sign-in requires MFA delivery. Obtain and test
+them with controlled recipients before live use. Public family and HeartPlan
+registration return 503 in production until both a SendGrid key and an
+explicit `FROM_EMAIL` are configured; this prevents account creation without
+the ability to send verification emails. A configured key is not proof of
+delivery. Do not use the database administrator as the permanent app identity.
+
+### Data to inventory before import
+
+- If preserving an existing application, obtain a consistent PostgreSQL backup,
+  schema and migration history. Relevant records can include users and roles,
+  cases, family memberships, consents, plans, payments, outreach and audit
+  history. Confirm which records are actually needed; do not assume all tables
+  should be copied, and avoid carrying over active sessions or live campaign
+  state without review.
+- Inventory uploaded documents, photos, audio and other objects separately.
+  Preserve their object paths, contents, content types and access metadata.
+- Determine whether existing encrypted identities require the original
+  `SESSION_SECRET`. Never replace the production secret or import encrypted
+  records until the matching-key and recovery procedure has been reviewed.
+- Review saved nearest-relative results for invented contact information before
+  migration or use, and reconcile payment and messaging records with their
+  providers. Never copy provider credentials from another project.
+- If starting genuinely empty, no historical data import is required; initialize
+  the reviewed empty-database baseline and explicitly bootstrap an administrator
+  only after recovery, connectivity and MFA delivery are ready.
 
 ## Proposed topology
 
@@ -111,12 +222,12 @@ backup/restore and a rotation procedure for each.
    applied before deploying this version: the webhook retry worker stores the
    `failed_permanent` enum value when retries are exhausted. Back up, review,
    and rehearse this change on an isolated copy; the deployment workflow does
-   not apply migrations. The current retry sweeper marks a failed log as sent
-   and increments its retry count but does not itself dispatch a webhook;
-   investigate and repair that behavior before relying on automatic retries.
-   The admin nearest-relatives search in `server/routes.ts` currently generates
-   synthetic names and contact details rather than querying a real provider.
-   Disable or replace that behavior before using it with real cases.
+   not apply migrations. Automatic webhook retries are disabled because the
+   former worker marked failures sent without dispatching them. Review failed
+   logs and contact providers manually until a real dispatcher is implemented.
+   Public-records relatives search is disabled until a verified provider is
+   connected. Older saved relative results may be synthetic; review provenance
+   before use or migration. Do not assume their contact details are genuine.
 4. Startup no longer promotes or creates admins or deletes hard-coded cases.
    Existing promoted accounts are not automatically demoted; independently
    audit and review existing roles. Startup is **not read-only**: it still
@@ -199,7 +310,8 @@ provider spend without exposing user data.
 
 [CI](../.github/workflows/ci.yml) runs on pull requests, pushes to `main`, and
 manual dispatch. It uses a fresh PostgreSQL 16 service, synthetic credentials,
-UTC and no external-provider credentials. It runs the configured `npm test`,
+UTC and no external-provider credentials. It initializes its disposable database
+with the versioned baseline and consent trigger. It runs the configured `npm test`,
 the ORSA warmup unit/route and four database suites, a webhook enum migration
 test, validation-route regressions, type-checking, public-route browser smoke
 tests and certificate validation with a standalone Vite server and mocked APIs, and a Docker build whose
@@ -231,7 +343,7 @@ The currently authenticated GitHub account has write, but not admin, access
 to `Jhakir-sal/udc`; `main` is unprotected and no environments were visible.
 Actions settings returned HTTP 403. A repository administrator must configure
 and verify the branch and environment protections before staging deployment.
-The Container Registry resource provider is not registered in the subscription.
+The Container Registry resource provider is now registered in the subscription.
 The local migration changes and workflows are uncommitted and therefore cannot
 yet be dispatched from `main`. Provider sandbox credentials are not configured
 or verified. Do not bypass these prerequisites.

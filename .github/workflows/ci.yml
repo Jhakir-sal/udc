@@ -52,9 +52,7 @@ jobs:
       - run: npm ci
       - name: Initialize disposable database
         id: schema
-        run: |
-          npm run db:push -- --force
-          npm run db:protect-consent-ledger
+        run: npm run db:migrate
       - name: Run application tests
         run: npm test
       - name: Run validation route regressions
@@ -64,11 +62,14 @@ jobs:
           server/caseDocumentAlerts.test.ts
           server/estateReferral.test.ts
           server/nerSearch.test.ts
+          server/relativesSearchSafety.test.ts
+          server/registrationAvailability.test.ts
       - name: Run ORSA and migration integration tests
         if: ${{ !cancelled() && steps.schema.outcome == 'success' }}
         env:
           ORSA_WARMUP_DB_TEST: "1"
           WEBHOOK_MIGRATION_DB_TEST: "1"
+          BASELINE_DB_TEST: "1"
         run: >-
           npx tsx --test
           server/orsaWarmup.test.ts
@@ -78,6 +79,7 @@ jobs:
           server/orsaEmailCampaignRetry.db.test.ts
           server/orsaOutreach.db.test.ts
           server/webhookStatusMigration.db.test.ts
+          server/baselineMigration.db.test.ts
       - name: Run startup safety regressions
         env:
           STARTUP_SAFETY_DB_TEST: "1"
